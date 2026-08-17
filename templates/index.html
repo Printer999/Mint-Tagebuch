@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block body %}
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Dashboard</p>
+      <h1>Meine Mint-Woche</h1>
+    </div>
+    <div class="hero-summary">
+      <span>Ø Bewertung</span>
+      <strong>{{ '%.1f'|format(summary.avg_rating) }}/5</strong>
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <div class="stat-card accent">
+      <span>Einträge</span>
+      <strong>{{ summary.total_entries }}</strong>
+      <small>{{ summary.first_date or 'Noch keine Daten' }} – {{ summary.last_date or '–' }}</small>
+    </div>
+    <div class="stat-card">
+      <span>Bestes Highlight</span>
+      <strong>{{ summary.best_day.high_light[:35] if summary.best_day else '—' }}</strong>
+      <small>{{ summary.best_day.rating }}/5 bei {{ summary.best_day.entry_date if summary.best_day else '—' }}</small>
+    </div>
+    <div class="stat-card">
+      <span>Letzter Eintrag</span>
+      <strong>{{ summary.latest.entry_date if summary.latest else '—' }}</strong>
+      <small>{{ summary.latest.high_light[:40] if summary.latest else 'Noch keine Einträge' }}</small>
+    </div>
+  </section>
+
+  <section class="content-grid">
+    <div class="panel form-panel" id="new-entry">
+      <div class="panel-header">
+        <h2>Neuer Tages-Eintrag</h2>
+      </div>
+
+      <form method="post" class="entry-form">
+        <div class="form-row two-col">
+          <label>
+            <span>Datum</span>
+            <input type="date" name="entry_date" required />
+          </label>
+          <div class="rating-field">
+            <span>Bewertung</span>
+            <div class="rating-picker" role="radiogroup" aria-label="Bewertung">
+              <input type="radio" name="rating" id="rating-1" value="1" />
+              <label for="rating-1" title="1 – schwierig">★</label>
+
+              <input type="radio" name="rating" id="rating-2" value="2" />
+              <label for="rating-2" title="2 – eher schwach">★</label>
+
+              <input type="radio" name="rating" id="rating-3" value="3" checked />
+              <label for="rating-3" title="3 – gut">★</label>
+
+              <input type="radio" name="rating" id="rating-4" value="4" />
+              <label for="rating-4" title="4 – sehr gut">★</label>
+
+              <input type="radio" name="rating" id="rating-5" value="5" />
+              <label for="rating-5" title="5 – fantastisch">★</label>
+            </div>
+            <script>
+              document.addEventListener('DOMContentLoaded', () => {
+                const applyRatingState = () => {
+                  const ratingInputs = Array.from(document.querySelectorAll('.rating-picker input[name="rating"]'));
+                  const selectedValue = Number(ratingInputs.find((input) => input.checked)?.value || 0);
+
+                  ratingInputs.forEach((input) => {
+                    const label = input.nextElementSibling;
+                    const isSelected = Number(input.value) <= selectedValue;
+                    label.classList.toggle('selected', isSelected);
+                  });
+                };
+
+                document.querySelectorAll('.rating-picker input[name="rating"]').forEach((input) => {
+                  input.addEventListener('change', applyRatingState);
+                });
+
+                applyRatingState();
+              });
+            </script>
+          </div>
+        </div>
+
+        <label>
+          <span>High Light</span>
+          <textarea name="high_light" rows="3" placeholder="Was war heute besonders gut?" required></textarea>
+        </label>
+
+        <label>
+          <span>Low Light</span>
+          <textarea name="low_light" rows="3" placeholder="Was war heute schwierig oder weniger gut?" required></textarea>
+        </label>
+
+        <label>
+          <span>Notizen</span>
+          <textarea name="notes" rows="4" placeholder="Zusätzliche Gedanken, Beobachtungen, Eindrücke..."></textarea>
+        </label>
+
+        <button type="submit">Eintrag speichern</button>
+      </form>
+    </div>
+
+    <div class="panel list-panel">
+      <div class="panel-header">
+        <h2>Letzte Tage</h2>
+      </div>
+
+      {% if entries %}
+        <div class="entry-list">
+          {% for entry in entries %}
+            <article class="entry-card">
+              <div class="entry-topline">
+                <strong>{{ entry.entry_date }}</strong>
+                <span class="rating-pill">{{ entry.rating }}/5</span>
+              </div>
+              <div class="entry-fields">
+                <div>
+                  <label>High Light</label>
+                  <p>{{ entry.high_light }}</p>
+                </div>
+                <div>
+                  <label>Low Light</label>
+                  <p>{{ entry.low_light }}</p>
+                </div>
+                {% if entry.notes %}
+                  <div>
+                    <label>Notizen</label>
+                    <p>{{ entry.notes }}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>Noch keine Einträge. Füge deinen ersten Tag der Mint-Woche hinzu.</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

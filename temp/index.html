@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mein Wochen-Tagebuch</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Persönliches Journal</p>
+          <h1>Mein Wochen-Tagebuch</h1>
+        </div>
+      </header>
+
+      <nav id="day-tabs" class="day-tabs" aria-label="Tage der Woche"></nav>
+
+      <main class="journal-panel">
+        <section class="entry-form-card">
+          <div class="panel-heading">
+            <h2 id="selected-day-label">Montag</h2>
+            <span id="day-summary" class="day-summary">0 Einträge</span>
+          </div>
+
+          <form id="entry-form">
+            <label for="entry-text">Neuer Eintrag</label>
+            <textarea
+              id="entry-text"
+              rows="6"
+              placeholder="Was ist heute wichtig?"
+            ></textarea>
+
+            <div class="rating-row">
+              <span>Bewertung</span>
+              <div id="star-rating" class="star-rating" aria-label="Tagesbewertung"></div>
+            </div>
+
+            <button type="submit" class="save-btn">Eintrag speichern</button>
+          </form>
+        </section>
+
+        <section class="entries-card">
+          <h3>Einträge</h3>
+          <ul id="entries-list" class="entries-list"></ul>
+        </section>
+      </main>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
