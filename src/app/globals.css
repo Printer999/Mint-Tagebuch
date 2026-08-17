@@ -1,0 +1,163 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Mint Week dark theme - matches the original diary design */
+:root {
+  --radius: 0.75rem;
+
+  /* dark teal/navy background palette */
+  --bg: #07131d;
+  --bg-alt: #0c1d2d;
+  --surface: rgba(15, 23, 42, 0.8);
+  --panel: rgba(18, 38, 54, 0.92);
+  --panel-soft: rgba(27, 49, 67, 0.8);
+
+  --text: #edf4ff;
+  --muted: #9bb4c7;
+  --accent: #61d0a8;
+  --accent-strong: #40b98d;
+  --warning: #f6c66c;
+  --danger: #ef7e7e;
+  --border-soft: rgba(145, 168, 189, 0.2);
+
+  /* shadcn tokens mapped onto the mint theme */
+  --background: #07131d;
+  --foreground: #edf4ff;
+  --card: rgba(18, 38, 54, 0.92);
+  --card-foreground: #edf4ff;
+  --popover: #0c1d2d;
+  --popover-foreground: #edf4ff;
+  --primary: #61d0a8;
+  --primary-foreground: #032a1d;
+  --secondary: rgba(27, 49, 67, 0.8);
+  --secondary-foreground: #edf4ff;
+  --muted-bg: rgba(148, 163, 184, 0.08);
+  --muted: rgba(148, 163, 184, 0.08);
+  --muted-foreground: #9bb4c7;
+  --accent-bg: rgba(97, 208, 168, 0.12);
+  --accent: rgba(97, 208, 168, 0.12);
+  --accent-foreground: #dffaf0;
+  --destructive: #ef7e7e;
+  --border: rgba(145, 168, 189, 0.2);
+  --input: rgba(148, 163, 184, 0.18);
+  --ring: #61d0a8;
+  --chart-1: #61d0a8;
+  --chart-2: #60a5fa;
+  --chart-3: #f6c66c;
+  --chart-4: #ef7e7e;
+  --chart-5: #a78bfa;
+  --sidebar: #0c1d2d;
+  --sidebar-foreground: #edf4ff;
+  --sidebar-primary: #61d0a8;
+  --sidebar-primary-foreground: #032a1d;
+  --sidebar-accent: rgba(97, 208, 168, 0.12);
+  --sidebar-accent-foreground: #edf4ff;
+  --sidebar-border: rgba(145, 168, 189, 0.2);
+  --sidebar-ring: #61d0a8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", var(--font-geist-sans), system-ui, sans-serif;
+    min-height: 100vh;
+    /* layered radial gradients echoing the original Mint Week look */
+    background:
+      radial-gradient(circle at top left, rgba(97, 208, 168, 0.12), transparent 18%),
+      radial-gradient(circle at right center, rgba(96, 165, 250, 0.16), transparent 25%),
+      linear-gradient(135deg, var(--bg) 0%, #081c2e 35%, var(--bg-alt) 100%);
+    background-attachment: fixed;
+  }
+}
+
+/* Thin, themed scrollbars for long lists */
+.mint-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.mint-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mint-scroll::-webkit-scrollbar-thumb {
+  background: rgba(145, 168, 189, 0.25);
+  border-radius: 999px;
+}
+.mint-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(97, 208, 168, 0.4);
+}
+
+/* Animated entrance used by the auth screens */
+@keyframes mint-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.mint-fade-up {
+  animation: mint-fade-up 0.5s ease both;
+}
+
+/* Soft pulsing glow for the brand logo */
+@keyframes mint-glow {
+  0%, 100% {
+    text-shadow: 0 0 18px rgba(97, 208, 168, 0.25);
+  }
+  50% {
+    text-shadow: 0 0 26px rgba(97, 208, 168, 0.45);
+  }
+}
+.mint-glow {
+  animation: mint-glow 4s ease-in-out infinite;
+}

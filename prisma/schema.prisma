@@ -1,0 +1,35 @@
+// Prisma schema for the Mint Week Tagebuch app.
+// Entries (diary) and Users (auth) live in the same SQLite database,
+// but in separate tables. Roles are stored as plain strings on the User
+// table ("ADMIN" | "EDITOR" | "VIEWER").
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Entry {
+  id        Int      @id @default(autoincrement())
+  entryDate String   @unique // ISO date string "YYYY-MM-DD"
+  highLight String
+  lowLight  String
+  rating    Int      // 1..5
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([entryDate])
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  passwordHash        String
+  role                String   @default("VIEWER") // "ADMIN" | "EDITOR" | "VIEWER"
+  mustChangePassword Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

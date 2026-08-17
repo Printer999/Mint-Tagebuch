@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block body %}
+  <section class="panel form-panel" style="max-width: 900px; margin: 0 auto;">
+    <div class="panel-header">
+      <h2>Eintrag bearbeiten</h2>
+    </div>
+
+    <form method="post" class="entry-form">
+      <div class="form-row two-col">
+        <label>
+          <span>Datum</span>
+          <input type="date" name="entry_date" value="{{ entry.entry_date }}" required />
+        </label>
+
+        <div class="rating-field">
+          <span>Bewertung</span>
+          <div class="rating-picker" role="radiogroup" aria-label="Bewertung">
+            <input type="radio" name="rating" id="rating-1" value="1" {% if entry.rating == 1 %}checked{% endif %} />
+            <label for="rating-1" title="1 – schwierig" {% if entry.rating >= 1 %}class="selected"{% endif %}>★</label>
+
+            <input type="radio" name="rating" id="rating-2" value="2" {% if entry.rating == 2 %}checked{% endif %} />
+            <label for="rating-2" title="2 – eher schwach" {% if entry.rating >= 2 %}class="selected"{% endif %}>★</label>
+
+            <input type="radio" name="rating" id="rating-3" value="3" {% if entry.rating == 3 %}checked{% endif %} />
+            <label for="rating-3" title="3 – gut" {% if entry.rating >= 3 %}class="selected"{% endif %}>★</label>
+
+            <input type="radio" name="rating" id="rating-4" value="4" {% if entry.rating == 4 %}checked{% endif %} />
+            <label for="rating-4" title="4 – sehr gut" {% if entry.rating >= 4 %}class="selected"{% endif %}>★</label>
+
+            <input type="radio" name="rating" id="rating-5" value="5" {% if entry.rating == 5 %}checked{% endif %} />
+            <label for="rating-5" title="5 – fantastisch" {% if entry.rating >= 5 %}class="selected"{% endif %}>★</label>
+          </div>
+          <script>
+            document.addEventListener('DOMContentLoaded', () => {
+              const applyRatingState = () => {
+                const ratingInputs = Array.from(document.querySelectorAll('.rating-picker input[name="rating"]'));
+                const selectedValue = Number(ratingInputs.find((input) => input.checked)?.value || 0);
+
+                ratingInputs.forEach((input) => {
+                  const label = input.nextElementSibling;
+                  label.classList.toggle('selected', Number(input.value) <= selectedValue);
+                });
+              };
+
+              document.querySelectorAll('.rating-picker input[name="rating"]').forEach((input) => {
+                input.addEventListener('change', applyRatingState);
+              });
+
+              applyRatingState();
+            });
+          </script>
+        </div>
+      </div>
+
+      <label>
+        <span>High Light</span>
+        <textarea name="high_light" rows="3" required>{{ entry.high_light }}</textarea>
+      </label>
+
+      <label>
+        <span>Low Light</span>
+        <textarea name="low_light" rows="3" required>{{ entry.low_light }}</textarea>
+      </label>
+
+      <label>
+        <span>Notizen</span>
+        <textarea name="notes" rows="4">{{ entry.notes or '' }}</textarea>
+      </label>
+
+      <div class="form-actions">
+        <button type="submit">Änderungen speichern</button>
+        <a href="{{ url_for('index') }}" class="cancel-link">Zurück</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}
