@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 LOG_PATH = BASE_DIR / "mint_tagebuch.log"
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/mint_tagebuch",
+    "postgresql://user1:nUxzeWSB11nWUe2Lx2fCc6wTV1BbXcDr@dpg-da1g13c9v7es73bbai50-a:5432/mint_tagebuch?sslmode=require",
 )
 
 app = Quart(__name__)
