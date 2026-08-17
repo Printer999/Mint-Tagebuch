@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block body %}
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Administration</p>
+      <h1>Nutzerverwaltung</h1>
+      <p class="hero-desc">
+        Lege Accounts an, ändere Rollen und setze Passwörter zurück. Neue
+        Accounts erhalten das Standard-Passwort <strong>1234</strong> und müssen
+        es beim ersten Login ändern.
+      </p>
+    </div>
+    <div class="role-pills">
+      <span class="role-pill role-admin">Admin · {{ users|selectattr('role','equalto','ADMIN')|list|length }}</span>
+      <span class="role-pill role-editor">Editor · {{ users|selectattr('role','equalto','EDITOR')|list|length }}</span>
+      <span class="role-pill role-viewer">Viewer · {{ users|selectattr('role','equalto','VIEWER')|list|length }}</span>
+    </div>
+  </section>
+
+  <section class="panel create-user-panel">
+    <h2>Neuen Nutzer anlegen</h2>
+    <form method="post" action="{{ url_for('create_user_route') }}" class="user-create-form">
+      <label class="auth-field">
+        <span>Name</span>
+        <input type="text" name="name" placeholder="z.B. Anna Müller" required maxlength="40" />
+      </label>
+      <label class="auth-field">
+        <span>Rolle</span>
+        <select name="role">
+          <option value="VIEWER">Viewer (nur ansehen)</option>
+          <option value="EDITOR">Editor (sehen & bearbeiten)</option>
+          <option value="ADMIN">Admin (volle Kontrolle)</option>
+        </select>
+      </label>
+      <button type="submit" class="primary-btn">Anlegen</button>
+    </form>
+    <p class="panel-hint">
+      <strong>Admin</strong>: volle Kontrolle über Nutzer &amp; Einträge.
+      <strong>Editor</strong>: Einträge sehen &amp; bearbeiten.
+      <strong>Viewer</strong>: Einträge nur ansehen.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <h2>Alle Nutzer</h2>
+    </div>
+    <div class="users-table-wrap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Rolle</th>
+            <th>Status</th>
+            <th>Erstellt</th>
+            <th class="actions-col">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td class="user-name-cell">
+                {{ u.name }}
+                {% if u.id == current_user.id %}
+                  <span class="self-badge">Du</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('update_user_role_route', user_id=u.id) }}" class="role-form">
+                  <select name="role" onchange="this.form.submit()" {% if u.id == current_user.id %}disabled{% endif %}>
+                    <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>Admin</option>
+                    <option value="EDITOR" {% if u.role == 'EDITOR' %}selected{% endif %}>Editor</option>
+                    <option value="VIEWER" {% if u.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
+                  </select>
+                </form>
+              </td>
+              <td>
+                {% if u.must_change_password %}
+                  <span class="status-pill status-open">Passwort offen</span>
+                {% else %}
+                  <span class="status-pill status-active">Aktiv</span>
+                {% endif %}
+              </td>
+              <td class="created-cell">{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+              <td class="actions-col">
+                <form method="post" action="{{ url_for('reset_user_password_route', user_id=u.id) }}" class="inline-form">
+                  <button type="submit" class="action-btn warning" onclick="return confirm('Passwort von {{ u.name }} auf 1234 zurücksetzen?')">Passwort zurücksetzen</button>
+                </form>
+                <form method="post" action="{{ url_for('delete_user_route', user_id=u.id) }}" class="inline-form">
+                  <button type="submit" class="action-btn danger" {% if u.id == current_user.id %}disabled{% endif %} onclick="return confirm('Nutzer {{ u.name }} wirklich löschen?')">Löschen</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

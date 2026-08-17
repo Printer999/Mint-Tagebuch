@@ -1,7 +1,7 @@
 [project]
 name = "mint-tagebuch"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Mint Week Tagebuch mit Login, Rollen (Admin/Editor/Viewer) und Nutzerverwaltung"
 readme = "README.md"
 authors = [
     { name = "Printer999", email = "nils.rink.ul@gmail.com" }
@@ -10,6 +10,8 @@ requires-python = ">=3.12"
 dependencies = [
     "quart>=0.21.0",
     "psycopg[binary]>=3.2.1",
+    "bcrypt>=4.2.0",
+    "hypercorn>=0.17.0",
 ]
 
 [project.scripts]

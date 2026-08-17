@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anmeldung · Mint Week Tagebuch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body class="auth-body">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-logo">MW</div>
+        <p class="auth-eyebrow">Mint Week</p>
+        <h1 class="auth-title">Tagebuch</h1>
+        <p class="auth-subtitle">Melde dich an, um deine Einträge zu sehen und zu bearbeiten.</p>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-container">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <form method="post" class="auth-form">
+        <label class="auth-field">
+          <span>Name</span>
+          <input type="text" name="name" value="{{ name }}" placeholder="z.B. TheHacker" required autofocus />
+        </label>
+        <label class="auth-field">
+          <span>Passwort</span>
+          <input type="password" name="password" placeholder="••••••••" required />
+        </label>
+        <button type="submit" class="primary-btn">Anmelden</button>
+      </form>
+
+      <div class="auth-hint">
+        Beim ersten Login wirst du aufgefordert, dein Passwort zu ändern.
+        Neue Accounts erhalten standardmäßig das Passwort <strong>1234</strong>.
+      </div>
+    </div>
+  </body>
+</html>
