@@ -70,7 +70,7 @@ async def run_db_query(query: str, params=(), *, fetchall: bool = False, fetchon
                 return cursor.fetchall()
             if fetchone:
                 return cursor.fetchone()
-            return cursor.lastrowid
+            return getattr(cursor, "lastrowid", None)
         finally:
             conn.close()
 
