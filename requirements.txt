@@ -1,1 +1,2 @@
-quart==0.19.9
+quart==0.21.0
+psycopg[binary]>=3.2.1

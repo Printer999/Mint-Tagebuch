@@ -1,49 +1,117 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mein Wochen-Tagebuch</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mint Week Tagebuch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Persönliches Journal</p>
-          <h1>Mein Wochen-Tagebuch</h1>
-        </div>
+        <div class="topbar-brand">Mint Week</div>
+        <nav class="topbar-nav" aria-label="Navigation">
+          <a href="#" class="active">Dashboard</a>
+          <a href="#new-entry">Neuer Eintrag</a>
+          <span class="topbar-user">Tagebuch</span>
+        </nav>
       </header>
 
-      <nav id="day-tabs" class="day-tabs" aria-label="Tage der Woche"></nav>
-
-      <main class="journal-panel">
-        <section class="entry-form-card">
-          <div class="panel-heading">
-            <h2 id="selected-day-label">Montag</h2>
-            <span id="day-summary" class="day-summary">0 Einträge</span>
+      <main class="container">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h1>Meine Mint-Woche</h1>
           </div>
-
-          <form id="entry-form">
-            <label for="entry-text">Neuer Eintrag</label>
-            <textarea
-              id="entry-text"
-              rows="6"
-              placeholder="Was ist heute wichtig?"
-            ></textarea>
-
-            <div class="rating-row">
-              <span>Bewertung</span>
-              <div id="star-rating" class="star-rating" aria-label="Tagesbewertung"></div>
-            </div>
-
-            <button type="submit" class="save-btn">Eintrag speichern</button>
-          </form>
+          <div class="hero-summary">
+            <span>Ø Bewertung</span>
+            <strong id="avg-rating">0.0/5</strong>
+          </div>
         </section>
 
-        <section class="entries-card">
-          <h3>Einträge</h3>
-          <ul id="entries-list" class="entries-list"></ul>
+        <section class="stats-grid">
+          <div class="stat-card accent">
+            <span>Einträge</span>
+            <strong id="total-entries">0</strong>
+            <small id="date-range">Noch keine Daten</small>
+          </div>
+          <div class="stat-card">
+            <span>Aktiver Tag</span>
+            <strong id="active-day-name">Montag</strong>
+            <small id="active-day-count">0 Einträge</small>
+          </div>
+          <div class="stat-card">
+            <span>Letzter Eintrag</span>
+            <strong id="latest-entry-date">—</strong>
+            <small id="latest-entry-preview">Noch keine Einträge</small>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <div class="panel form-panel" id="new-entry">
+            <div class="panel-header">
+              <h2 id="selected-day-label">Neuer Tages-Eintrag</h2>
+            </div>
+
+            <nav id="day-tabs" class="day-tabs" aria-label="Tage der Woche"></nav>
+
+            <form id="entry-form" class="entry-form">
+              <div class="form-row two-col">
+                <label>
+                  <span>Datum</span>
+                  <input id="entry-date" type="date" name="entry_date" required />
+                </label>
+
+                <div class="rating-field">
+                  <span>Bewertung</span>
+                  <div class="rating-picker" role="radiogroup" aria-label="Bewertung">
+                    <input type="radio" name="rating" id="rating-1" value="1" />
+                    <label for="rating-1" title="1 – schwierig">★</label>
+
+                    <input type="radio" name="rating" id="rating-2" value="2" />
+                    <label for="rating-2" title="2 – eher schwach">★</label>
+
+                    <input type="radio" name="rating" id="rating-3" value="3" checked />
+                    <label for="rating-3" title="3 – gut">★</label>
+
+                    <input type="radio" name="rating" id="rating-4" value="4" />
+                    <label for="rating-4" title="4 – sehr gut">★</label>
+
+                    <input type="radio" name="rating" id="rating-5" value="5" />
+                    <label for="rating-5" title="5 – fantastisch">★</label>
+                  </div>
+                </div>
+              </div>
+
+              <label>
+                <span>High Light</span>
+                <textarea id="high-light" name="high_light" rows="3" placeholder="Was war heute besonders gut?" required></textarea>
+              </label>
+
+              <label>
+                <span>Low Light</span>
+                <textarea id="low-light" name="low_light" rows="3" placeholder="Was war heute schwierig oder weniger gut?" required></textarea>
+              </label>
+
+              <label>
+                <span>Notizen</span>
+                <textarea id="notes" name="notes" rows="4" placeholder="Zusätzliche Gedanken, Beobachtungen, Eindrücke..."></textarea>
+              </label>
+
+              <button type="submit">Eintrag speichern</button>
+            </form>
+          </div>
+
+          <div class="panel list-panel">
+            <div class="panel-header">
+              <h2 id="list-header">Einträge für Montag</h2>
+            </div>
+
+            <div id="entries-list" class="entry-list"></div>
+          </div>
         </section>
       </main>
     </div>

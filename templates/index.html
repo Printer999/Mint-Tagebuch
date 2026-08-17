@@ -30,78 +30,7 @@
     </div>
   </section>
 
-  <section class="content-grid">
-    <div class="panel form-panel" id="new-entry">
-      <div class="panel-header">
-        <h2>Neuer Tages-Eintrag</h2>
-      </div>
-
-      <form method="post" class="entry-form">
-        <div class="form-row two-col">
-          <label>
-            <span>Datum</span>
-            <input type="date" name="entry_date" required />
-          </label>
-          <div class="rating-field">
-            <span>Bewertung</span>
-            <div class="rating-picker" role="radiogroup" aria-label="Bewertung">
-              <input type="radio" name="rating" id="rating-1" value="1" />
-              <label for="rating-1" title="1 – schwierig">★</label>
-
-              <input type="radio" name="rating" id="rating-2" value="2" />
-              <label for="rating-2" title="2 – eher schwach">★</label>
-
-              <input type="radio" name="rating" id="rating-3" value="3" checked />
-              <label for="rating-3" title="3 – gut">★</label>
-
-              <input type="radio" name="rating" id="rating-4" value="4" />
-              <label for="rating-4" title="4 – sehr gut">★</label>
-
-              <input type="radio" name="rating" id="rating-5" value="5" />
-              <label for="rating-5" title="5 – fantastisch">★</label>
-            </div>
-            <script>
-              document.addEventListener('DOMContentLoaded', () => {
-                const applyRatingState = () => {
-                  const ratingInputs = Array.from(document.querySelectorAll('.rating-picker input[name="rating"]'));
-                  const selectedValue = Number(ratingInputs.find((input) => input.checked)?.value || 0);
-
-                  ratingInputs.forEach((input) => {
-                    const label = input.nextElementSibling;
-                    const isSelected = Number(input.value) <= selectedValue;
-                    label.classList.toggle('selected', isSelected);
-                  });
-                };
-
-                document.querySelectorAll('.rating-picker input[name="rating"]').forEach((input) => {
-                  input.addEventListener('change', applyRatingState);
-                });
-
-                applyRatingState();
-              });
-            </script>
-          </div>
-        </div>
-
-        <label>
-          <span>High Light</span>
-          <textarea name="high_light" rows="3" placeholder="Was war heute besonders gut?" required></textarea>
-        </label>
-
-        <label>
-          <span>Low Light</span>
-          <textarea name="low_light" rows="3" placeholder="Was war heute schwierig oder weniger gut?" required></textarea>
-        </label>
-
-        <label>
-          <span>Notizen</span>
-          <textarea name="notes" rows="4" placeholder="Zusätzliche Gedanken, Beobachtungen, Eindrücke..."></textarea>
-        </label>
-
-        <button type="submit">Eintrag speichern</button>
-      </form>
-    </div>
-
+  <section class="content-grid" style="grid-template-columns: 1fr;">
     <div class="panel list-panel">
       <div class="panel-header">
         <h2>Letzte Tage</h2>
@@ -131,6 +60,15 @@
                   </div>
                 {% endif %}
               </div>
+              <div class="entry-menu-wrap">
+                <button class="entry-menu-button" type="button" aria-label="Eintrag Optionen" aria-expanded="false">⋯</button>
+                <div class="entry-menu" role="menu">
+                  <a href="{{ url_for('edit_entry', entry_id=entry.id) }}" class="action-btn secondary" role="menuitem">Bearbeiten</a>
+                  <form method="post" action="{{ url_for('delete_entry_route', entry_id=entry.id) }}" onsubmit="return confirm('Diesen Eintrag wirklich löschen?');">
+                    <button type="submit" class="action-btn danger" role="menuitem">Löschen</button>
+                  </form>
+                </div>
+              </div>
             </article>
           {% endfor %}
         </div>
@@ -141,4 +79,37 @@
       {% endif %}
     </div>
   </section>
+
+  <div class="bottom-actions">
+    <a href="{{ url_for('create_entry') }}" class="primary-btn">+ Neuer Eintrag</a>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.entry-menu-button').forEach((button) => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const menu = button.nextElementSibling;
+          const isOpen = button.getAttribute('aria-expanded') === 'true';
+
+          document.querySelectorAll('.entry-menu-button').forEach((otherButton) => {
+            if (otherButton !== button) {
+              otherButton.setAttribute('aria-expanded', 'false');
+              otherButton.nextElementSibling.classList.remove('open');
+            }
+          });
+
+          button.setAttribute('aria-expanded', String(!isOpen));
+          menu.classList.toggle('open', !isOpen);
+        });
+      });
+
+      document.addEventListener('click', () => {
+        document.querySelectorAll('.entry-menu-button').forEach((button) => {
+          button.setAttribute('aria-expanded', 'false');
+          button.nextElementSibling.classList.remove('open');
+        });
+      });
+    });
+  </script>
 {% endblock %}

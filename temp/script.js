@@ -1,23 +1,24 @@
-const weekDays = [
-  "Montag",
-  "Dienstag",
-  "Mittwoch",
-  "Donnerstag",
-  "Freitag",
-];
-
-const STORAGE_KEY = "weekly-diary-v1";
+const weekDays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+const STORAGE_KEY = "mint-week-temp-diary-v1";
 
 let selectedDay = weekDays[0];
-let currentRating = 0;
 
 const dayTabs = document.getElementById("day-tabs");
 const selectedDayLabel = document.getElementById("selected-day-label");
-const daySummary = document.getElementById("day-summary");
-const starRating = document.getElementById("star-rating");
+const listHeader = document.getElementById("list-header");
+const avgRating = document.getElementById("avg-rating");
+const totalEntries = document.getElementById("total-entries");
+const dateRange = document.getElementById("date-range");
+const activeDayName = document.getElementById("active-day-name");
+const activeDayCount = document.getElementById("active-day-count");
+const latestEntryDate = document.getElementById("latest-entry-date");
+const latestEntryPreview = document.getElementById("latest-entry-preview");
 const entriesList = document.getElementById("entries-list");
 const entryForm = document.getElementById("entry-form");
-const entryText = document.getElementById("entry-text");
+const entryDateInput = document.getElementById("entry-date");
+const highLightInput = document.getElementById("high-light");
+const lowLightInput = document.getElementById("low-light");
+const notesInput = document.getElementById("notes");
 
 function getDefaultData() {
   return weekDays.reduce((acc, day) => {
@@ -37,10 +38,7 @@ function loadEntries() {
 
   try {
     const parsed = JSON.parse(saved);
-    return {
-      ...getDefaultData(),
-      ...parsed,
-    };
+    return { ...getDefaultData(), ...parsed };
   } catch (error) {
     console.error("Fehler beim Laden der Tagebucheinträge:", error);
     const fallback = getDefaultData();
@@ -51,6 +49,23 @@ function loadEntries() {
 
 function saveEntries(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function getDayEntries() {
+  const data = loadEntries();
+  return data[selectedDay] || [];
+}
+
+function updateRatingState() {
+  const ratingInputs = Array.from(document.querySelectorAll('.rating-picker input[name="rating"]'));
+  const selectedValue = Number(ratingInputs.find((input) => input.checked)?.value || 0);
+
+  ratingInputs.forEach((input) => {
+    const label = input.nextElementSibling;
+    if (label) {
+      label.classList.toggle("selected", Number(input.value) <= selectedValue);
+    }
+  });
 }
 
 function renderDayTabs() {
@@ -65,8 +80,6 @@ function renderDayTabs() {
 
     button.addEventListener("click", () => {
       selectedDay = day;
-      currentRating = 0;
-      entryText.value = "";
       render();
     });
 
@@ -74,111 +87,130 @@ function renderDayTabs() {
   });
 }
 
-function getDayEntries() {
+function renderSummary() {
   const data = loadEntries();
-  return data[selectedDay] || [];
-}
+  const allEntries = weekDays.flatMap((day) => data[day] || []);
+  const total = allEntries.length;
+  const avg = total > 0 ? allEntries.reduce((sum, item) => sum + Number(item.rating), 0) / total : 0;
 
-function renderStars() {
-  starRating.innerHTML = "";
+  avgRating.textContent = `${avg.toFixed(1)}/5`;
+  totalEntries.textContent = String(total);
 
-  for (let value = 1; value <= 5; value += 1) {
-    const star = document.createElement("button");
-    star.type = "button";
-    star.className = `star-btn ${value <= currentRating ? "active" : ""}`;
-    star.textContent = "★";
-    star.setAttribute("aria-label", `${value} Sterne`);
-    star.setAttribute("aria-pressed", String(value === currentRating));
+  const dates = allEntries.map((item) => item.entry_date).filter(Boolean);
+  const first = dates.length ? new Date(Math.min(...dates.map((date) => new Date(date).getTime()))) : null;
+  const last = dates.length ? new Date(Math.max(...dates.map((date) => new Date(date).getTime()))) : null;
 
-    star.addEventListener("click", () => {
-      currentRating = value;
-      renderStars();
-    });
+  if (first && last) {
+    const format = (date) => date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+    dateRange.textContent = `${format(first)} – ${format(last)}`;
+  } else {
+    dateRange.textContent = "Noch keine Daten";
+  }
 
-    starRating.appendChild(star);
+  activeDayName.textContent = selectedDay;
+  activeDayCount.textContent = `${getDayEntries().length} ${getDayEntries().length === 1 ? "Eintrag" : "Einträge"}`;
+
+  const latest = allEntries.slice().sort((a, b) => new Date(b.entry_date) - new Date(a.entry_date))[0];
+
+  if (latest) {
+    latestEntryDate.textContent = latest.entry_date;
+    latestEntryPreview.textContent = latest.high_light.slice(0, 40) || "Letzter Eintrag";
+  } else {
+    latestEntryDate.textContent = "—";
+    latestEntryPreview.textContent = "Noch keine Einträge";
   }
 }
 
 function renderEntries() {
   const entries = getDayEntries();
-  const count = entries.length;
-  daySummary.textContent = `${count} ${count === 1 ? "Eintrag" : "Einträge"}`;
-  selectedDayLabel.textContent = selectedDay;
+  selectedDayLabel.textContent = `${selectedDay}`;
+  listHeader.textContent = `Einträge für ${selectedDay}`;
 
-  if (count === 0) {
-    entriesList.innerHTML = '<li class="empty-state">Noch keine Einträge für diesen Tag. Schreibe deine Gedanken auf.</li>';
+  if (entries.length === 0) {
+    entriesList.innerHTML = '<div class="empty-state">Noch keine Einträge für diesen Tag. Füge deinen ersten Eintrag hinzu.</div>';
     return;
   }
 
-  entriesList.innerHTML = "";
-
-  entries
+  entriesList.innerHTML = entries
     .slice()
     .reverse()
-    .forEach((entry) => {
-      const listItem = document.createElement("li");
-      listItem.className = "entry-item";
+    .map(
+      (entry) => `
+        <article class="entry-card">
+          <div class="entry-topline">
+            <strong>${entry.entry_date || "Ohne Datum"}</strong>
+            <span class="rating-pill">${entry.rating}/5</span>
+          </div>
+          <div class="entry-fields">
+            <div>
+              <label>High Light</label>
+              <p>${escapeHtml(entry.high_light)}</p>
+            </div>
+            <div>
+              <label>Low Light</label>
+              <p>${escapeHtml(entry.low_light)}</p>
+            </div>
+            ${entry.notes ? `<div><label>Notizen</label><p>${escapeHtml(entry.notes)}</p></div>` : ""}
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
 
-      const header = document.createElement("div");
-      header.className = "entry-header";
-
-      const date = document.createElement("span");
-      date.className = "entry-date";
-      date.textContent = entry.date;
-
-      const rating = document.createElement("span");
-      rating.className = "entry-rating";
-      rating.textContent = "★".repeat(entry.rating) + "☆".repeat(5 - entry.rating);
-
-      header.append(date, rating);
-
-      const text = document.createElement("p");
-      text.className = "entry-text";
-      text.textContent = entry.text;
-
-      listItem.append(header, text);
-      entriesList.appendChild(listItem);
-    });
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function render() {
   renderDayTabs();
-  renderStars();
+  renderSummary();
   renderEntries();
+  updateRatingState();
 }
+
+entryDateInput.value = new Date().toISOString().split("T")[0];
 
 entryForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
-  const text = entryText.value.trim();
+  const entryDate = entryDateInput.value;
+  const highLight = highLightInput.value.trim();
+  const lowLight = lowLightInput.value.trim();
+  const notes = notesInput.value.trim();
+  const rating = Number(document.querySelector('.rating-picker input[name="rating"]:checked')?.value || 3);
 
-  if (!text) {
-    entryText.focus();
+  if (!entryDate || !highLight || !lowLight) {
+    if (!entryDate) entryDateInput.focus();
+    else if (!highLight) highLightInput.focus();
+    else lowLightInput.focus();
     return;
-  }
-
-  if (currentRating === 0) {
-    currentRating = 3;
   }
 
   const data = loadEntries();
   data[selectedDay].push({
     id: Date.now(),
-    text,
-    rating: currentRating,
-    date: new Date().toLocaleString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    entry_date: entryDate,
+    high_light: highLight,
+    low_light: lowLight,
+    notes,
+    rating,
   });
 
   saveEntries(data);
-  entryText.value = "";
-  currentRating = 0;
+  entryForm.reset();
+  document.getElementById("rating-3").checked = true;
+  entryDateInput.value = new Date().toISOString().split("T")[0];
   render();
+});
+
+document.querySelectorAll('.rating-picker input[name="rating"]').forEach((input) => {
+  input.addEventListener("change", updateRatingState);
 });
 
 render();
