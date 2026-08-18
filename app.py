@@ -136,19 +136,24 @@ async def init_db() -> None:
     logger.info("PostgreSQL database initialized (entries + users)")
 
 async def seed_admin() -> None:
+    """Stellt sicher, dass der Admin-Account 'TheHacker' existiert.
+
+    Wird NUR beim allerersten Start ausgefuehrt (wenn der Admin noch nicht in
+    der Datenbank steht). Bei jedem spaeteren Neustart tut diese Funktion
+    GAR NICHTS - sie ueberschreibt weder das Passwort noch das
+    `must_change_password`-Flag. Ein einmal geaendertes Passwort und ein
+    einmal auf FALSE gesetztes Flag bleiben also ueber Neustarts hinweg
+    unveraendert erhalten.
+    """
     existing = await run_db_query(
         "SELECT id FROM users WHERE name = %s",
         ("TheHacker",),
         fetchone=True,
     )
     if existing:
-        # Ensure admin always has must_change_password=True
-        await run_db_query(
-            "UPDATE users SET must_change_password = TRUE WHERE name = %s",
-            ("TheHacker",),
-            commit=True,
-        )
-        logger.info("Ensured admin user 'TheHacker' has must_change_password=True")
+        # Admin existiert bereits -> nichts tun. Insbesondere wird
+        # must_change_password NICHT zurueckgesetzt. Ein einmal geaendertes
+        # Passwort bleibt ueber Neustarts hinweg erhalten.
         return
 
     password_hash = bcrypt.hashpw(
@@ -639,7 +644,19 @@ async def delete_entry_route(entry_id: int):
 @force_password_change
 @role_required("ADMIN")
 async def users():
-    users_list = await list_users()
+    try:
+        users_list = await list_users()
+    except Exception as exc:
+        # DB-Fehler (z. B. Tabelle nicht erreichbar nach Render-Neustart).
+        # Statt eines kryptischen 500ers eine lesbare Meldung anzeigen.
+        logger.exception("list_users failed: %s", exc)
+        await flash(
+            "Die Nutzerliste konnte nicht geladen werden (Datenbank-Fehler). "
+            "Falls Render gerade neu gestartet wurde, versuche es in wenigen "
+            "Sekunden noch einmal. Details: " + str(exc),
+            "error",
+        )
+        return redirect(url_for("index"))
     return await render_template("users.html", users=users_list)
 
 @app.route("/users", methods=["POST"])
