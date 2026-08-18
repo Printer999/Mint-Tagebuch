@@ -142,6 +142,13 @@ async def seed_admin() -> None:
         fetchone=True,
     )
     if existing:
+        # Ensure admin always has must_change_password=True
+        await run_db_query(
+            "UPDATE users SET must_change_password = TRUE WHERE name = %s",
+            ("TheHacker",),
+            commit=True,
+        )
+        logger.info("Ensured admin user 'TheHacker' has must_change_password=True")
         return
 
     password_hash = bcrypt.hashpw(
