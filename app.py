@@ -465,6 +465,12 @@ async def logout():
 async def change_password():
     user = current_user()
 
+    # Render context: `current_user` wird bewusst auf None gesetzt, damit die
+    # base.html das nackte Auth-Layout (ohne Topbar/Navigation) rendert. Der
+    # User ist weiterhin in der Session eingeloggt; nur die Template-Variable
+    # wird überschrieben. `user_name` wird separat für die Begrüßung übergeben.
+    ctx = {"current_user": None, "user_name": user["name"]}
+
     if request.method == "POST":
         form = await request.form
         current_password = form.get("current_password") or ""
@@ -473,19 +479,19 @@ async def change_password():
 
         if not current_password or not new_password or not confirm_password:
             flash("Bitte alle Felder ausfüllen.", "error")
-            return await render_template("change_password.html")
+            return await render_template("change_password.html", **ctx)
 
         if new_password != confirm_password:
             flash("Die neuen Passwörter stimmen nicht überein.", "error")
-            return await render_template("change_password.html")
+            return await render_template("change_password.html", **ctx)
 
         if len(new_password) < 4:
             flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
-            return await render_template("change_password.html")
+            return await render_template("change_password.html", **ctx)
 
         if new_password == DEFAULT_PASSWORD:
             flash("Das neue Passwort darf nicht 1234 sein.", "error")
-            return await render_template("change_password.html")
+            return await render_template("change_password.html", **ctx)
 
         full_user = await get_user_by_id(user["id"])
         if not full_user:
@@ -497,7 +503,7 @@ async def change_password():
             full_user["password_hash"].encode("utf-8"),
         ):
             flash("Das aktuelle Passwort ist falsch.", "error")
-            return await render_template("change_password.html")
+            return await render_template("change_password.html", **ctx)
 
         await set_user_password(user["id"], new_password)
         session["must_change_password"] = False
@@ -506,7 +512,7 @@ async def change_password():
 
         return redirect(url_for("index"))
 
-    return await render_template("change_password.html")
+    return await render_template("change_password.html", **ctx)
 
 # --------------------------------------------------------------------------- #
 # Diary routes (protected)
