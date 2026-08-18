@@ -1,87 +1,26 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="hero">
-    <div>
-        <p class="eyebrow">Admin Bereich</p>
-        <h1>Nutzerverwaltung</h1>
-    </div>
+{% block auth_content %}
+<div class="auth-brand">
+    <div class="auth-logo">M</div>
+    <p class="auth-eyebrow">MINT Ferienwoche</p>
+    <h1 class="auth-title">Tagebuch Login</h1>
+    <p class="auth-subtitle">Melde dich an, um deine Einträge zu sehen.</p>
 </div>
 
-<div class="panel create-user-panel">
-    <h2>Neuen Nutzer anlegen</h2>
-    <form class="user-create-form" method="POST" action="{{ url_for('create_user_route') }}">
-        <label>
-            <span>Name</span>
-            <input type="text" name="name" required>
-        </label>
-        <label>
-            <span>Rolle</span>
-            <select name="role">
-                <option value="VIEWER">Viewer (Nur Lesen)</option>
-                <option value="EDITOR">Editor (Lesen + Schreiben)</option>
-                <option value="ADMIN">Admin (Volle Kontrolle)</option>
-            </select>
-        </label>
-        <button type="submit" class="primary-btn">Erstellen</button>
-    </form>
-</div>
+<form class="auth-form" method="POST" action="{{ url_for('login') }}">
+    <label class="auth-field">
+        <span>Name</span>
+        <input type="text" name="name" value="{{ name }}" required autofocus>
+    </label>
+    <label class="auth-field">
+        <span>Passwort</span>
+        <input type="password" name="password" required>
+    </label>
+    <button type="submit" class="primary-btn">Anmelden</button>
+</form>
 
-<div class="panel">
-    <div class="panel-header">
-        <h2>Registrierte Nutzer</h2>
-    </div>
-    <div class="users-table-wrap">
-        <table class="users-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Rolle</th>
-                    <th>Status</th>
-                    <th>Erstellt am</th>
-                    <th class="actions-col">Aktionen</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for u in users %}
-                <tr>
-                    <td class="user-name-cell">
-                        {{ u.name }}
-                        {% if current_user and u.id == current_user.id %}
-                            <span class="self-badge">Du</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <form class="role-form inline-form" method="POST" action="{{ url_for('update_user_role_route', user_id=u.id) }}">
-                            <select name="role" class="role-select role-select-{{ u.role|lower }}" onchange="this.form.submit()" {% if current_user and u.id == current_user.id %}disabled{% endif %}>
-                                <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>Admin</option>
-                                <option value="EDITOR" {% if u.role == 'EDITOR' %}selected{% endif %}>Editor</option>
-                                <option value="VIEWER" {% if u.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
-                            </select>
-                        </form>
-                    </td>
-                    <td>
-                        {% if u.must_change_password %}
-                        <span class="status-pill status-open">Passwort ändern nötig</span>
-                        {% else %}
-                        <span class="status-pill status-active">Aktiv</span>
-                        {% endif %}
-                    </td>
-                    <td class="created-cell">{{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '-' }}</td>
-                    <td class="actions-col">
-                        <form class="inline-form" method="POST" action="{{ url_for('reset_user_password_route', user_id=u.id) }}" style="margin-right: 0.5rem;">
-                            <button type="submit" class="action-btn warning">Passwort zurücksetzen</button>
-                        </form>
-                        {% if not (current_user and u.id == current_user.id) %}
-                        <form class="inline-form" method="POST" action="{{ url_for('delete_user_route', user_id=u.id) }}" onsubmit="return confirm('Nutzer wirklich löschen?')">
-                            <button type="submit" class="action-btn danger">Löschen</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="auth-hint">
+    <strong>Hinweis:</strong> Das Standard-Passwort ist <code>1234</code> und muss beim ersten Login geändert werden.
 </div>
 {% endblock %}
