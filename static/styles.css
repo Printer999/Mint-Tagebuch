@@ -914,11 +914,72 @@ button:disabled {
   margin: 0;
 }
 
-.role-form select {
+/* Rollen-Dropdown: als farbiges Badge mit Pfeil-Icon gestylt.
+   Die Farbe passt sich an die aktuell gewählte Rolle an:
+   Admin = Gold, Editor = Mint, Viewer = Grau. */
+.role-form .role-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   width: auto;
-  min-width: 130px;
-  padding: 0.4rem 0.7rem;
-  font-size: 0.85rem;
+  min-width: 145px;
+  padding: 0.45rem 2.2rem 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  color: var(--text);
+  background-color: rgba(148, 163, 184, 0.06);
+  /* Chevron-Down Pfeil als SVG */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239bb4c7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 12px;
+  transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.role-form .role-select:hover {
+  transform: translateY(-1px);
+}
+
+.role-form .role-select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(97, 208, 168, 0.2);
+}
+
+/* Rollenspezifische Farben */
+.role-form .role-select.role-select-admin {
+  background-color: rgba(246, 198, 108, 0.12);
+  border-color: rgba(246, 198, 108, 0.4);
+  color: #f5d28d;
+}
+
+.role-form .role-select.role-select-editor {
+  background-color: rgba(97, 208, 168, 0.12);
+  border-color: rgba(97, 208, 168, 0.4);
+  color: #c8f6e4;
+}
+
+.role-form .role-select.role-select-viewer {
+  background-color: rgba(145, 168, 189, 0.12);
+  border-color: rgba(145, 168, 189, 0.4);
+  color: #cdd9e4;
+}
+
+/* Dropdown-Optionen: dunkler Hintergrund */
+.role-form .role-select option {
+  background: #0c1d2d;
+  color: var(--text);
+  padding: 0.5rem;
+}
+
+/* Deaktiviert (für den eigenen Account) */
+.role-form .role-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .status-pill {

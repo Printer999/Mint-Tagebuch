@@ -53,7 +53,7 @@
                     </td>
                     <td>
                         <form class="role-form inline-form" method="POST" action="{{ url_for('update_user_role_route', user_id=u.id) }}">
-                            <select name="role" onchange="this.form.submit()" {% if current_user and u.id == current_user.id %}disabled{% endif %}>
+                            <select name="role" class="role-select role-select-{{ u.role|lower }}" onchange="this.form.submit()" {% if current_user and u.id == current_user.id %}disabled{% endif %}>
                                 <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>Admin</option>
                                 <option value="EDITOR" {% if u.role == 'EDITOR' %}selected{% endif %}>Editor</option>
                                 <option value="VIEWER" {% if u.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
