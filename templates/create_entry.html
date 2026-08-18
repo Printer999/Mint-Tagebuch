@@ -1,80 +1,47 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block body %}
-  <section class="hero" style="margin-bottom: 2rem;">
-    <div>
-      <p class="eyebrow">Neuer Eintrag</p>
-      <h1>Tagebucheintrag erstellen</h1>
-    </div>
-  </section>
-
-  <section class="panel form-panel" style="max-width: 900px; margin: 0 auto;">
-    <form method="post" class="entry-form">
-      <div class="form-row two-col">
-        <label>
-          <span>Datum</span>
-          <input type="date" name="entry_date" required />
-        </label>
-        <div class="rating-field">
-          <span>Bewertung</span>
-          <div class="rating-picker" role="radiogroup" aria-label="Bewertung">
-            <input type="radio" name="rating" id="rating-1" value="1" />
-            <label for="rating-1" title="1 – schwierig">★</label>
-
-            <input type="radio" name="rating" id="rating-2" value="2" />
-            <label for="rating-2" title="2 – eher schwach">★</label>
-
-            <input type="radio" name="rating" id="rating-3" value="3" checked />
-            <label for="rating-3" title="3 – gut">★</label>
-
-            <input type="radio" name="rating" id="rating-4" value="4" />
-            <label for="rating-4" title="4 – sehr gut">★</label>
-
-            <input type="radio" name="rating" id="rating-5" value="5" />
-            <label for="rating-5" title="5 – fantastisch">★</label>
-          </div>
-          <script>
-            document.addEventListener('DOMContentLoaded', () => {
-              const applyRatingState = () => {
-                const ratingInputs = Array.from(document.querySelectorAll('.rating-picker input[name="rating"]'));
-                const selectedValue = Number(ratingInputs.find((input) => input.checked)?.value || 0);
-
-                ratingInputs.forEach((input) => {
-                  const label = input.nextElementSibling;
-                  const isSelected = Number(input.value) <= selectedValue;
-                  label.classList.toggle('selected', isSelected);
-                });
-              };
-
-              document.querySelectorAll('.rating-picker input[name="rating"]').forEach((input) => {
-                input.addEventListener('change', applyRatingState);
-              });
-
-              applyRatingState();
-            });
-          </script>
+{% block content %}
+<div class="content-grid" style="grid-template-columns: 1fr;">
+    <div class="panel">
+        <div class="panel-header">
+            <h2>Neuen Tagebucheintrag erstellen</h2>
         </div>
-      </div>
-
-      <label>
-        <span>High Light</span>
-        <textarea name="high_light" rows="3" placeholder="Was war heute besonders gut?" required></textarea>
-      </label>
-
-      <label>
-        <span>Low Light</span>
-        <textarea name="low_light" rows="3" placeholder="Was war heute schwierig oder weniger gut?" required></textarea>
-      </label>
-
-      <label>
-        <span>Notizen</span>
-        <textarea name="notes" rows="4" placeholder="Zusätzliche Gedanken, Beobachtungen, Eindrücke..."></textarea>
-      </label>
-
-      <div class="form-actions">
-        <button type="submit">Eintrag speichern</button>
-        <a href="{{ url_for('index') }}" class="cancel-link">Zurück zum Dashboard</a>
-      </div>
-    </form>
-  </section>
+        
+        <form class="entry-form" method="POST" action="{{ url_for('create_entry') }}">
+            <div class="form-row two-col">
+                <label>
+                    <span>Datum</span>
+                    <input type="date" name="entry_date" required>
+                </label>
+                <div class="rating-field">
+                    <span>Bewertung</span>
+                    <div class="rating-picker">
+                        {% for i in range(1, 6) %}
+                        <input type="radio" id="rating-{{ i }}" name="rating" value="{{ i }}" {% if i == 3 %}checked{% endif %}>
+                        <label for="rating-{{ i }}">{{ i }}</label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <label>
+                <span>High Light</span>
+                <textarea name="high_light" required></textarea>
+            </label>
+            <label>
+                <span>Low Light</span>
+                <textarea name="low_light" required></textarea>
+            </label>
+            <label>
+                <span>Notizen (Optional)</span>
+                <textarea name="notes"></textarea>
+            </label>
+            
+            <div class="form-actions">
+                <button type="submit" class="primary-btn" style="width: auto;">Speichern</button>
+                <a href="{{ url_for('index') }}" class="cancel-link">Abbrechen</a>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

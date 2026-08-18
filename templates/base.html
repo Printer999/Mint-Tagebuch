@@ -1,90 +1,70 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Mint Week Tagebuch{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
-    {% block head %}{% endblock %}
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="topbar-brand">Mint Week</div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MINT Tagebuch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+{% if current_user %}
+<div class="app-shell">
+    <header class="topbar">
+        <div class="topbar-brand">MINT Tagebuch</div>
         <nav class="topbar-nav">
-          <a href="/" class="active">Dashboard</a>
-          <a href="/new">Neuer Eintrag</a>
-          <span class="topbar-user">Tagebuch</span>
-        </nav>
-      </header>
-
-      <main class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-container">
-              {% for category, message in messages %}
-                <div class="flash flash-{{ category }}">{{ message }}</div>
-              {% endfor %}
-            </div>
-          {% endif %}
-        {% endwith %}
-
-        {% block body %}{% endblock %}
-      </main>
-    </div>
-  </body>
-</html>
-
-<!doctype html>
-<html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Mint Week Tagebuch{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
-    {% block head %}{% endblock %}
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="topbar-brand">Mint Week</div>
-        <nav class="topbar-nav">
-          <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Dashboard</a>
-          {% if can_edit %}
+            <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Dashboard</a>
+            {% if can_edit %}
             <a href="{{ url_for('create_entry') }}" class="{{ 'active' if request.endpoint == 'create_entry' else '' }}">Neuer Eintrag</a>
-          {% endif %}
-          {% if is_admin %}
+            {% endif %}
+            {% if is_admin %}
             <a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint == 'users' else '' }}">Nutzerverwaltung</a>
-          {% endif %}
-          <span class="topbar-user">
-            <span class="topbar-user-name">{{ current_user.name }}</span>
-            <span class="role-badge role-{{ current_user.role|lower }}">{{ current_user.role }}</span>
-          </span>
-          <form method="post" action="{{ url_for('logout') }}" class="logout-form">
-            <button type="submit" class="logout-btn">Abmelden</button>
-          </form>
-        </nav>
-      </header>
-
-      <main class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="flash-container">
-              {% for category, message in messages %}
-                <div class="flash flash-{{ category }}">{{ message }}</div>
-              {% endfor %}
+            {% endif %}
+            
+            <div class="topbar-user">
+                <span class="topbar-user-name">{{ current_user.name }}</span>
+                <span class="role-badge role-{{ current_user.role | lower }}">{{ current_user.role }}</span>
             </div>
-          {% endif %}
+            
+            <form class="logout-form" action="{{ url_for('logout') }}" method="POST">
+                <button type="submit" class="logout-btn">Abmelden</button>
+            </form>
+        </nav>
+    </header>
+    
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-container">
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
         {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+</div>
 
-        {% block body %}{% endblock %}
-      </main>
+{% else %}
+    {# Layout für Login & Passwort ändern (ohne Navigationsleiste) #}
+    <div class="auth-body">
+        <div class="auth-card {{ 'auth-card-warning' if request.endpoint == 'change_password' else '' }}">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-container">
+                        {% for category, message in messages %}
+                            <div class="flash flash-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            {% block auth_content %}{% endblock %}
+        </div>
     </div>
-  </body>
+{% endif %}
+
+</body>
 </html>
