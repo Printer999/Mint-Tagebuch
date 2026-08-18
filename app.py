@@ -44,7 +44,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "mint-week-dev-secret-change-me")
 # The default password assigned to every newly created account.
 DEFAULT_PASSWORD = "1234"
 
-app = Quart(__name__, static_folder=str(Path(__file__).parent / "static"))
+app = Quart(
+    __name__, 
+    static_folder=str(BASE_DIR / "static"),
+    template_folder=str(BASE_DIR / "templates")
+)
 app.secret_key = SECRET_KEY
 
 
