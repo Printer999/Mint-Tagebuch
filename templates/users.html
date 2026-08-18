@@ -17,7 +17,7 @@
         </label>
         <label>
             <span>Rolle</span>
-            <select name="role" class="role-select role-select-neutral">
+            <select name="role" class="role-select role-select-{{ u.role|lower }}">
                 <option value="VIEWER">Viewer (Nur Lesen)</option>
                 <option value="EDITOR">Editor (Lesen + Schreiben)</option>
                 <option value="ADMIN">Admin (Volle Kontrolle)</option>
