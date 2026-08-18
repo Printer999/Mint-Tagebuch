@@ -446,16 +446,38 @@ async def login():
         if not user or not ok:
             flash("Name oder Passwort ist falsch.", "error")
             return await render_template("login.html", name=name)
+        
+        # Passwort-Wechsel NUR erzwingen, wenn das eingegebene Passwort
+        # tatsächlich das Standard-Passwort "1234" ist. Es wird bewusst NICHT
+        # auf das `must_change_password`-Flag in der Datenbank vertraut, da
+        # dieses (z. B. nach Render-Neustarts, DB-Pausen oder abgebrochenen
+        # Passwort-Wechseln) aus der Sync geraten kann. So wird ein bereits
+        # geändertes Passwort nie fälschlicherweise erneut zum Ändern
+        # aufgefordert.
+        is_default_password = (password == DEFAULT_PASSWORD)
+
+        # Das DB-Flag mit der Realität synchronisieren, damit die
+        # Nutzerverwaltungs-Anzeige korrekt bleibt (Passwort offen / Aktiv).
+        if bool(user["must_change_password"]) != is_default_password:
+            await run_db_query(
+                "UPDATE users SET must_change_password = %s WHERE id = %s",
+                (is_default_password, user["id"]),
+                commit=True,
+            )
 
         session.clear()
         session["user_id"] = user["id"]
         session["user_name"] = user["name"]
         session["user_role"] = user["role"]
-        session["must_change_password"] = user["must_change_password"]
+        session["must_change_password"] = is_default_password
 
-        logger.info("User %s logged in", user["name"])
+        logger.info(
+            "User %s logged in (default password: %s)",
+            user["name"],
+            is_default_password,
+        )
 
-        if user["must_change_password"]:
+        if is_default_password:
             return redirect(url_for("change_password"))
         return redirect(url_for("index"))
 
