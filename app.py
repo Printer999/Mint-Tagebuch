@@ -356,7 +356,7 @@ def login_required(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         if not current_user():
-            flash("Bitte melde dich an, um diese Seite zu sehen.", "error")
+            await flash("Bitte melde dich an, um diese Seite zu sehen.", "error")
             return redirect(url_for("login"))
         return await func(*args, **kwargs)
     return wrapper
@@ -367,10 +367,10 @@ def role_required(*roles):
         async def wrapper(*args, **kwargs):
             user = current_user()
             if not user:
-                flash("Bitte melde dich an.", "error")
+                await flash("Bitte melde dich an.", "error")
                 return redirect(url_for("login"))
             if user["role"] not in roles:
-                flash("Du hast keine Berechtigung für diese Aktion.", "error")
+                await flash("Du hast keine Berechtigung für diese Aktion.", "error")
                 return redirect(url_for("index"))
             return await func(*args, **kwargs)
         return wrapper
