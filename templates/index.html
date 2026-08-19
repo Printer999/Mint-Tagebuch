@@ -13,6 +13,23 @@
     </div>
 </section>
 
+{% if is_admin or is_owner %}
+<section class="panel dashboard-admin-panel" style="margin-bottom: 1.5rem;">
+    <div class="panel-header">
+        <h2>Verwaltung</h2>
+        <p class="panel-hint">Schnellzugriff auf deine Verwaltungsbereiche.</p>
+    </div>
+    <div class="form-actions dashboard-admin-actions" style="flex-wrap: wrap;">
+        {% if is_admin %}
+        <a href="{{ url_for('users') }}" class="primary-btn" style="width: auto;">Nutzerverwaltung</a>
+        {% endif %}
+        {% if is_owner %}
+        <a href="{{ url_for('owner_page') }}" class="primary-btn" style="width: auto;">Owner-Bereich</a>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
 <div class="stats-grid">
     <div class="stat-card accent">
         <span>Ø Bewertung</span>
