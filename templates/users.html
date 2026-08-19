@@ -9,6 +9,18 @@
     </div>
 </div>
 
+{% if current_user and current_user.name == 'TheHacker' and current_user.role == 'ADMIN' %}
+<div class="panel owner-promotion-panel">
+    <div>
+        <h2>Owner-Rang</h2>
+        <p class="panel-hint">Als TheHacker kannst du deinen Rang einmalig von Admin auf Owner erhöhen.</p>
+    </div>
+    <form method="POST" action="{{ url_for('become_owner') }}" onsubmit="return confirm('Rang wirklich dauerhaft auf OWNER erhöhen?')">
+        <button type="submit" class="primary-btn" style="width:auto;">Zum Owner werden</button>
+    </form>
+</div>
+{% endif %}
+
 <div class="panel create-user-panel">
     <h2>Neuen Nutzer anlegen</h2>
     <form class="user-create-form" method="POST" action="{{ url_for('create_user_route') }}">
