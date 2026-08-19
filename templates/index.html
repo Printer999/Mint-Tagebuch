@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set user_role = (current_user.role or '') | trim | upper %}
 <section class="hero">
     <div>
         <p class="eyebrow">Willkommen zurück, {{ current_user.name }}</p>
@@ -13,17 +14,17 @@
     </div>
 </section>
 
-{% if is_admin or is_owner %}
+{% if user_role in ['OWNER', 'ADMIN'] %}
 <section class="panel dashboard-admin-panel" style="margin-bottom: 1.5rem;">
     <div class="panel-header">
         <h2>Verwaltung</h2>
         <p class="panel-hint">Schnellzugriff auf deine Verwaltungsbereiche.</p>
     </div>
     <div class="form-actions dashboard-admin-actions" style="flex-wrap: wrap;">
-        {% if is_admin %}
+        {% if user_role in ['OWNER', 'ADMIN'] %}
         <a href="{{ url_for('users') }}" class="primary-btn" style="width: auto;">Nutzerverwaltung</a>
         {% endif %}
-        {% if is_owner %}
+        {% if user_role == 'OWNER' %}
         <a href="{{ url_for('owner_page') }}" class="primary-btn" style="width: auto;">Owner-Bereich</a>
         {% endif %}
     </div>
@@ -88,7 +89,7 @@
                     {% endif %}
                 </div>
                 
-                {% if can_edit %}
+                {% if user_role in ['OWNER', 'ADMIN', 'EDITOR'] %}
                   <div class="entry-menu-wrap">
                     <button class="entry-menu-button" type="button" aria-label="Eintrag Optionen" aria-expanded="false">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -109,7 +110,7 @@
             {% endfor %}
             {% else %}
             <div class="empty-state">
-                Es sind noch keine Einträge vorhanden. {% if can_edit %} <a href="{{ url_for('create_entry') }}" style="color: var(--accent);">Ersten erstellen!</a> {% endif %}
+                Es sind noch keine Einträge vorhanden. {% if user_role in ['OWNER', 'ADMIN', 'EDITOR'] %} <a href="{{ url_for('create_entry') }}" style="color: var(--accent);">Ersten erstellen!</a> {% endif %}
             </div>
             {% endif %}
         </div>

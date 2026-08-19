@@ -9,24 +9,25 @@
 <body>
 
 {% if current_user %}
+{% set user_role = (current_user.role or '') | trim | upper %}
 <div class="app-shell">
     <header class="topbar">
         <div class="topbar-brand">MINT Tagebuch</div>
         <nav class="topbar-nav">
             <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">Dashboard</a>
-            {% if can_edit %}
+            {% if user_role in ['OWNER', 'ADMIN', 'EDITOR'] %}
             <a href="{{ url_for('create_entry') }}" class="{{ 'active' if request.endpoint == 'create_entry' else '' }}">Neuer Eintrag</a>
             {% endif %}
-            {% if is_admin %}
+            {% if user_role in ['OWNER', 'ADMIN'] %}
             <a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint == 'users' else '' }}">Nutzerverwaltung</a>
             {% endif %}
-            {% if is_owner %}
+            {% if user_role == 'OWNER' %}
             <a href="{{ url_for('owner_page') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('owner') else '' }}">Owner</a>
             {% endif %}
             
             <div class="topbar-user">
                 <span class="topbar-user-name">{{ current_user.name }}</span>
-                <span class="role-badge role-{{ current_user.role | lower }}">{{ current_user.role }}</span>
+                <span class="role-badge role-{{ current_user.role | lower }}">{{ user_role }}</span>
             </div>
             
             <form class="logout-form" action="{{ url_for('logout') }}" method="POST">
