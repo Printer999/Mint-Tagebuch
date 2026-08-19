@@ -568,13 +568,13 @@ async def create_entry():
     if request.method == "POST":
         form = await request.form
         entry_date = (form.get("entry_date") or "").strip()
-        high_light = (form.get("high_light") or "").strip()
-        low_light = (form.get("low_light") or "").strip()
-        notes = (form.get("notes") or "").strip()
+        high_light = (form.get("high_light") or "").strip() or "-"
+        low_light = (form.get("low_light") or "").strip() or "-"
+        notes = (form.get("notes") or "").strip() or "-"
         rating = int(form.get("rating", 3) or 3)
 
-        if not entry_date or not high_light or not low_light:
-            flash("Bitte fülle das Datum, High und Low Light aus.", "error")
+        if not entry_date:
+            flash("Bitte wähle ein Datum aus.", "error")
             return await render_template("create_entry.html")
 
         try:
@@ -601,13 +601,13 @@ async def edit_entry(entry_id: int):
     if request.method == "POST":
         form = await request.form
         entry_date = (form.get("entry_date") or "").strip()
-        high_light = (form.get("high_light") or "").strip()
-        low_light = (form.get("low_light") or "").strip()
-        notes = (form.get("notes") or "").strip()
+        high_light = (form.get("high_light") or "").strip() or "-"
+        low_light = (form.get("low_light") or "").strip() or "-"
+        notes = (form.get("notes") or "").strip() or "-"
         rating = int(form.get("rating", entry["rating"]) or entry["rating"])
 
-        if not entry_date or not high_light or not low_light:
-            flash("Bitte fülle das Datum, High und Low Light aus.", "error")
+        if not entry_date:
+            flash("Bitte wähle ein Datum aus.", "error")
             return await render_template("edit_entry.html", entry=entry)
 
         try:

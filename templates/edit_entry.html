@@ -26,15 +26,15 @@
             
             <label>
                 <span>High Light</span>
-                <textarea name="high_light" required>{{ entry.high_light }}</textarea>
+                <textarea name="high_light">{{ entry.high_light }}</textarea>
             </label>
             <label>
                 <span>Low Light</span>
-                <textarea name="low_light" required>{{ entry.low_light }}</textarea>
+                <textarea name="low_light">{{ entry.low_light }}</textarea>
             </label>
             <label>
-                <span>Notizen (Optional)</span>
-                <textarea name="notes">{{ entry.notes }}</textarea>
+                <span>Notizen</span>
+                <textarea name="notes">{{ entry.notes or '-' }}</textarea>
             </label>
             
             <div class="form-actions">
