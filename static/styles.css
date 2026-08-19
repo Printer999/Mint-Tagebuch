@@ -461,6 +461,7 @@ button:disabled {
   display: block;
   width: 16px;
   height: 16px;
+  pointer-events: none;
 }
 
 .entry-menu-button:hover,
