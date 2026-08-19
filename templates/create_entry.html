@@ -18,7 +18,7 @@
                     <div class="rating-picker">
                         {% for i in range(1, 6) %}
                         <input type="radio" id="rating-{{ i }}" name="rating" value="{{ i }}" {% if i == 3 %}checked{% endif %}>
-                        <label for="rating-{{ i }}">{{ i }}</label>
+                        <label for="rating-{{ i }}" data-rating="{{ i }}" aria-label="{{ i }} von 5 Sternen">★</label>
                         {% endfor %}
                     </div>
                 </div>
@@ -44,4 +44,46 @@
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".rating-picker").forEach((picker) => {
+        const inputs = Array.from(picker.querySelectorAll('input[type="radio"]'));
+        const labels = Array.from(picker.querySelectorAll("label[data-rating]"));
+
+        const paint = (value) => {
+            labels.forEach((label) => {
+                const rating = Number(label.dataset.rating);
+                label.classList.toggle("selected", rating <= value);
+            });
+        };
+
+        const checked = inputs.find((input) => input.checked);
+        paint(checked ? Number(checked.value) : 0);
+
+        inputs.forEach((input) => {
+            input.addEventListener("change", () => {
+                if (input.checked) paint(Number(input.value));
+            });
+        });
+
+        labels.forEach((label) => {
+            label.addEventListener("mouseenter", () => paint(Number(label.dataset.rating)));
+            label.addEventListener("focus", () => paint(Number(label.dataset.rating)));
+        });
+
+        picker.addEventListener("mouseleave", () => {
+            const current = inputs.find((input) => input.checked);
+            paint(current ? Number(current.value) : 0);
+        });
+
+        picker.addEventListener("focusout", (event) => {
+            if (!picker.contains(event.relatedTarget)) {
+                const current = inputs.find((input) => input.checked);
+                paint(current ? Number(current.value) : 0);
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
