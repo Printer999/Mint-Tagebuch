@@ -72,21 +72,21 @@
                 </div>
                 
                 {% if can_edit %}
-                <div class="entry-menu-wrap">
+                  <div class="entry-menu-wrap">
                     <button class="entry-menu-button" type="button" aria-label="Eintrag Optionen" aria-expanded="false">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <circle cx="5" cy="12" r="2"/>
-                            <circle cx="12" cy="12" r="2"/>
-                            <circle cx="19" cy="12" r="2"/>
-                        </svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="5" cy="12" r="2"/>
+                        <circle cx="12" cy="12" r="2"/>
+                        <circle cx="19" cy="12" r="2"/>
+                      </svg>
                     </button>
                     <div class="entry-menu" id="menu-{{ entry.id }}">
-                        <a href="{{ url_for('edit_entry', entry_id=entry.id) }}" class="action-btn secondary">Bearbeiten</a>
-                        <form action="{{ url_for('delete_entry_route', entry_id=entry.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?')">
-                            <button type="submit" class="action-btn danger">Löschen</button>
-                        </form>
+                      <a href="{{ url_for('edit_entry', entry_id=entry.id) }}" class="action-btn secondary">Bearbeiten</a>
+                      <form action="{{ url_for('delete_entry_route', entry_id=entry.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?')">
+                        <button type="submit" class="action-btn danger">Löschen</button>
+                      </form>
                     </div>
-                </div>
+                  </div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -98,4 +98,43 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const menuButtons = document.querySelectorAll('.entry-menu-button');
+
+    function closeAllMenus(exceptMenu = null) {
+        document.querySelectorAll('.entry-menu.open').forEach((menu) => {
+            if (menu !== exceptMenu) {
+                menu.classList.remove('open');
+                const button = menu.closest('.entry-menu-wrap')?.querySelector('.entry-menu-button');
+                if (button) button.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    menuButtons.forEach((button) => {
+        const wrapper = button.closest('.entry-menu-wrap');
+        const menu = wrapper?.querySelector('.entry-menu');
+        if (!menu) return;
+
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const shouldOpen = !menu.classList.contains('open');
+
+            closeAllMenus(menu);
+            menu.classList.toggle('open', shouldOpen);
+            button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+
+        menu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+    });
+
+    document.addEventListener('click', () => closeAllMenus());
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeAllMenus();
+    });
+});
+</script>
 {% endblock %}

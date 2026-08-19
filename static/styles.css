@@ -442,8 +442,8 @@ button:disabled {
 
 .entry-menu-button {
   display: flex;
-  align-items: center;       /* vertikal zentrieren */
-  justify-content: center;   /* horizontal zentrieren */
+  align-items: center;
+  justify-content: center;
   width: 36px;
   height: 36px;
   padding: 0;
@@ -453,7 +453,7 @@ button:disabled {
   color: var(--text);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
-  font-size: 0;    /* verhindert Inline-Lücke um das SVG */
+  font-size: 0;
   line-height: 0;
 }
 
