@@ -1083,3 +1083,164 @@ button:disabled {
     justify-content: center;
   }
 }
+
+/* Dashboard: one flexible full-width column */
+.dashboard-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Entry action menu: edit/delete must have identical dimensions */
+.entry-menu > .action-btn,
+.entry-menu form,
+.entry-menu form .action-btn {
+  width: 100%;
+}
+
+.entry-menu form {
+  display: grid;
+}
+
+.entry-menu .action-btn {
+  min-height: 40px;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+/* Flexible layout for tablets and phones */
+@media (max-width: 1000px) {
+  .app-shell {
+    border-radius: 22px;
+  }
+
+  .container {
+    padding: 1.5rem 1.1rem 2rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  body {
+    padding: 10px;
+  }
+
+  .app-shell {
+    width: 100%;
+    border-radius: 18px;
+  }
+
+  .topbar {
+    padding: 0.9rem;
+  }
+
+  .topbar-brand {
+    text-align: center;
+  }
+
+  .topbar-nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .topbar-nav > a,
+  .topbar-user,
+  .logout-form {
+    width: 100%;
+  }
+
+  .topbar-nav > a,
+  .topbar-user,
+  .logout-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 42px;
+    text-align: center;
+  }
+
+  .logout-btn {
+    width: 100%;
+  }
+
+  .container {
+    padding: 1.15rem 0.85rem 1.5rem;
+  }
+
+  .hero {
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.7rem, 9vw, 2.35rem);
+  }
+
+  .hero-desc {
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .stat-card:last-child {
+    grid-column: auto;
+  }
+
+  .stat-card {
+    min-height: 120px;
+  }
+
+  .panel {
+    padding: 0.9rem;
+    border-radius: 16px;
+  }
+
+  .entry-card {
+    padding: 0.85rem;
+  }
+
+  .entry-topline {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .entry-fields p {
+    overflow-wrap: anywhere;
+  }
+
+  .entry-menu {
+    width: min(220px, calc(100vw - 48px));
+    min-width: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  .topbar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-user {
+    flex-wrap: wrap;
+  }
+
+  .hero-summary {
+    padding: 0.75rem 0.9rem;
+  }
+
+  .entry-menu-wrap {
+    margin-top: 0.75rem;
+  }
+}
