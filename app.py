@@ -6,6 +6,7 @@ from pathlib import Path
 
 import bcrypt
 import psycopg
+from psycopg import sql
 from psycopg.rows import dict_row
 from quart import (
     Quart,
@@ -22,10 +23,7 @@ LOG_PATH = BASE_DIR / "mint_tagebuch.log"
 
 # Render sets DATABASE_URL for its managed PostgreSQL. Locally we fall back to
 # the development database. The URL is normalized so psycopg3 accepts it.
-_DEFAULT_DATABASE_URL = (
-    "postgresql://user1:nUxzeWSB11nWUe2Lx2fCc6wTV1BbXcDr"
-    "@dpg-da1g13c9v7es73bbai50-a:5432/mint_tagebuch?sslmode=require"
-)
+_DEFAULT_DATABASE_URL = "postgresql://localhost/mint_tagebuch"
 
 def _normalize_database_url(raw: str) -> str:
     """Render ships `postgres://` URLs which psycopg3 rejects; convert to
@@ -58,16 +56,21 @@ def configure_logger() -> logging.Logger:
     logger.propagate = False
 
     if not logger.handlers:
-        file_handler = logging.FileHandler(LOG_PATH, encoding="utf-8")
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+        # Console logging always works on Render. File logging is optional, as
+        # some deployment environments mount the application directory read-only.
         stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
-        logger.addHandler(file_handler)
+        stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
+
+        try:
+            file_handler = logging.FileHandler(LOG_PATH, encoding="utf-8")
+        except OSError:
+            logger.warning("Log file %s is not writable; using console logging only.", LOG_PATH)
+        else:
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
     return logger
 
@@ -126,11 +129,55 @@ async def init_db() -> None:
                 name TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'VIEWER'
-                    CHECK (role IN ('ADMIN', 'EDITOR', 'VIEWER')),
+                    CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER')),
                 must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+                locked BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
             """
+        )
+
+        # Migration fuer bereits bestehende Installationen.
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+
+        # Aeltere Versionen koennen einen anders benannten CHECK-Constraint
+        # besitzen, der OWNER noch nicht erlaubt. Deshalb werden nur die
+        # CHECK-Constraints entfernt, die tatsaechlich die Spalte `role`
+        # betreffen, und anschliessend ein eindeutiger Constraint angelegt.
+        role_constraints = conn.execute(
+            """
+            SELECT DISTINCT c.conname
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_attribute a
+              ON a.attrelid = t.oid
+             AND a.attnum = ANY(c.conkey)
+            WHERE c.contype = 'c'
+              AND t.relname = 'users'
+              AND n.nspname = current_schema()
+              AND a.attname = 'role'
+            """
+        ).fetchall()
+        for row in role_constraints:
+            conn.execute(
+                sql.SQL("ALTER TABLE users DROP CONSTRAINT {}").format(
+                    sql.Identifier(row["conname"])
+                )
+            )
+
+        conn.execute(
+            "ALTER TABLE users ADD CONSTRAINT users_role_check "
+            "CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER'))"
+        )
+
+        # OWNER darf nur TheHacker sein. Eventuelle alte/falsche OWNER-Rollen
+        # werden beim Start sicher auf ADMIN zurueckgesetzt.
+        conn.execute(
+            "UPDATE users SET role = 'ADMIN' "
+            "WHERE role = 'OWNER' AND name <> 'TheHacker'"
         )
         conn.commit()
     logger.info("PostgreSQL database initialized (entries + users)")
@@ -269,7 +316,7 @@ async def delete_entry(entry_id: int):
 async def get_user_by_name(name: str):
     return await run_db_query(
         """
-        SELECT id, name, password_hash, role, must_change_password, created_at
+        SELECT id, name, password_hash, role, must_change_password, locked, created_at
         FROM users WHERE name = %s
         """,
         (name,),
@@ -279,7 +326,7 @@ async def get_user_by_name(name: str):
 async def get_user_by_id(user_id: int):
     return await run_db_query(
         """
-        SELECT id, name, password_hash, role, must_change_password, created_at
+        SELECT id, name, password_hash, role, must_change_password, locked, created_at
         FROM users WHERE id = %s
         """,
         (user_id,),
@@ -289,7 +336,7 @@ async def get_user_by_id(user_id: int):
 async def list_users():
     return await run_db_query(
         """
-        SELECT id, name, role, must_change_password, created_at
+        SELECT id, name, role, must_change_password, locked, created_at
         FROM users ORDER BY created_at ASC
         """,
         fetchall=True,
@@ -411,16 +458,59 @@ async def before_serving():
     await seed_admin()
     logger.info("Mint week app started")
 
+
+@app.before_request
+async def refresh_logged_in_user():
+    """Keep the signed session synchronized with the current database row.
+
+    This is especially important after changing ADMIN to OWNER: navigation and
+    role checks update immediately. Deleted or locked accounts also lose access
+    without waiting for a fresh login. Database outages are logged but do not
+    destroy an otherwise valid session.
+    """
+    if request.endpoint == "static":
+        return None
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return None
+
+    try:
+        db_user = await get_user_by_id(user_id)
+    except Exception as exc:
+        logger.exception("Could not refresh session user %s: %s", user_id, exc)
+        return None
+
+    if not db_user:
+        session.clear()
+        await flash("Dein Konto existiert nicht mehr. Bitte melde dich erneut an.", "error")
+        if request.endpoint != "login":
+            return redirect(url_for("login"))
+        return None
+
+    if bool(db_user.get("locked")):
+        session.clear()
+        await flash("Dieser Account ist gesperrt. Bitte wende dich an den Owner.", "error")
+        if request.endpoint != "login":
+            return redirect(url_for("login"))
+        return None
+
+    session["user_name"] = db_user["name"]
+    session["user_role"] = db_user["role"]
+    session["must_change_password"] = bool(db_user["must_change_password"])
+    return None
+
 @app.context_processor
 def inject_user():
     user = current_user()
     role = user["role"] if user else None
     return {
         "current_user": user,
-        "is_admin": role == "ADMIN",
-        "is_editor": role in ("ADMIN", "EDITOR"),
+        "is_owner": role == "OWNER",
+        "is_admin": role in ("OWNER", "ADMIN"),
+        "is_editor": role in ("OWNER", "ADMIN", "EDITOR"),
         "is_viewer": role == "VIEWER",
-        "can_edit": role in ("ADMIN", "EDITOR"),
+        "can_edit": role in ("OWNER", "ADMIN", "EDITOR"),
     }
 
 # --------------------------------------------------------------------------- #
@@ -438,7 +528,7 @@ async def login():
         password = form.get("password") or ""
 
         if not name or not password:
-            flash("Bitte Name und Passwort eingeben.", "error")
+            await flash("Bitte Name und Passwort eingeben.", "error")
             return await render_template("login.html", name=name)
 
         user = await get_user_by_name(name)
@@ -449,9 +539,13 @@ async def login():
         ok = bcrypt.checkpw(password.encode("utf-8"), stored_hash)
 
         if not user or not ok:
-            flash("Name oder Passwort ist falsch.", "error")
+            await flash("Name oder Passwort ist falsch.", "error")
             return await render_template("login.html", name=name)
         
+        if user.get("locked"):
+            await flash("Dieser Account ist gesperrt. Bitte wende dich an den Owner.", "error")
+            return await render_template("login.html", name=name)
+
         # Passwort-Wechsel NUR erzwingen, wenn das eingegebene Passwort
         # tatsächlich das Standard-Passwort "1234" ist. Es wird bewusst NICHT
         # auf das `must_change_password`-Flag in der Datenbank vertraut, da
@@ -491,7 +585,7 @@ async def login():
 @app.route("/logout", methods=["POST"])
 async def logout():
     session.clear()
-    flash("Du wurdest abgemeldet.", "success")
+    await flash("Du wurdest abgemeldet.", "success")
     return redirect(url_for("login"))
 
 @app.route("/change-password", methods=["GET", "POST"])
@@ -512,19 +606,19 @@ async def change_password():
         confirm_password = form.get("confirm_password") or ""
 
         if not current_password or not new_password or not confirm_password:
-            flash("Bitte alle Felder ausfüllen.", "error")
+            await flash("Bitte alle Felder ausfüllen.", "error")
             return await render_template("change_password.html", **ctx)
 
         if new_password != confirm_password:
-            flash("Die neuen Passwörter stimmen nicht überein.", "error")
+            await flash("Die neuen Passwörter stimmen nicht überein.", "error")
             return await render_template("change_password.html", **ctx)
 
         if len(new_password) < 4:
-            flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
+            await flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
             return await render_template("change_password.html", **ctx)
 
         if new_password == DEFAULT_PASSWORD:
-            flash("Das neue Passwort darf nicht 1234 sein.", "error")
+            await flash("Das neue Passwort darf nicht 1234 sein.", "error")
             return await render_template("change_password.html", **ctx)
 
         full_user = await get_user_by_id(user["id"])
@@ -536,13 +630,13 @@ async def change_password():
             current_password.encode("utf-8"),
             full_user["password_hash"].encode("utf-8"),
         ):
-            flash("Das aktuelle Passwort ist falsch.", "error")
+            await flash("Das aktuelle Passwort ist falsch.", "error")
             return await render_template("change_password.html", **ctx)
 
         await set_user_password(user["id"], new_password)
         session["must_change_password"] = False
         logger.info("User %s changed their password", user["name"])
-        flash("Passwort erfolgreich geändert.", "success")
+        await flash("Passwort erfolgreich geändert.", "success")
 
         return redirect(url_for("index"))
 
@@ -563,7 +657,7 @@ async def index():
 @app.route("/new", methods=["GET", "POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN", "EDITOR")
+@role_required("OWNER", "ADMIN", "EDITOR")
 async def create_entry():
     if request.method == "POST":
         form = await request.form
@@ -574,14 +668,14 @@ async def create_entry():
         rating = int(form.get("rating", 3) or 3)
 
         if not entry_date:
-            flash("Bitte wähle ein Datum aus.", "error")
+            await flash("Bitte wähle ein Datum aus.", "error")
             return await render_template("create_entry.html")
 
         try:
             await save_entry(entry_date, high_light, low_light, rating, notes)
-            flash("Eintrag erfolgreich gespeichert.", "success")
+            await flash("Eintrag erfolgreich gespeichert.", "success")
         except psycopg.IntegrityError:
-            flash("Für dieses Datum existiert bereits ein Eintrag.", "error")
+            await flash("Für dieses Datum existiert bereits ein Eintrag.", "error")
             return await render_template("create_entry.html")
 
         return redirect(url_for("index"))
@@ -591,11 +685,11 @@ async def create_entry():
 @app.route("/entries/<int:entry_id>/edit", methods=["GET", "POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN", "EDITOR")
+@role_required("OWNER", "ADMIN", "EDITOR")
 async def edit_entry(entry_id: int):
     entry = await get_entry_by_id(entry_id)
     if entry is None:
-        flash("Eintrag nicht gefunden.", "error")
+        await flash("Eintrag nicht gefunden.", "error")
         return redirect(url_for("index"))
 
     if request.method == "POST":
@@ -607,14 +701,14 @@ async def edit_entry(entry_id: int):
         rating = int(form.get("rating", entry["rating"]) or entry["rating"])
 
         if not entry_date:
-            flash("Bitte wähle ein Datum aus.", "error")
+            await flash("Bitte wähle ein Datum aus.", "error")
             return await render_template("edit_entry.html", entry=entry)
 
         try:
             await update_entry(entry_id, entry_date, high_light, low_light, rating, notes)
-            flash("Eintrag erfolgreich bearbeitet.", "success")
+            await flash("Eintrag erfolgreich bearbeitet.", "success")
         except psycopg.IntegrityError:
-            flash("Dieses Datum ist bereits vergeben. Bitte wähle ein anderes Datum.", "error")
+            await flash("Dieses Datum ist bereits vergeben. Bitte wähle ein anderes Datum.", "error")
             return await render_template("edit_entry.html", entry=entry)
 
         return redirect(url_for("index"))
@@ -624,15 +718,15 @@ async def edit_entry(entry_id: int):
 @app.route("/entries/<int:entry_id>/delete", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN", "EDITOR")
+@role_required("OWNER", "ADMIN", "EDITOR")
 async def delete_entry_route(entry_id: int):
     entry = await get_entry_by_id(entry_id)
     if entry is None:
-        flash("Eintrag nicht gefunden.", "error")
+        await flash("Eintrag nicht gefunden.", "error")
         return redirect(url_for("index"))
 
     await delete_entry(entry_id)
-    flash("Eintrag gelöscht.", "success")
+    await flash("Eintrag gelöscht.", "success")
     return redirect(url_for("index"))
 
 # --------------------------------------------------------------------------- #
@@ -642,7 +736,7 @@ async def delete_entry_route(entry_id: int):
 @app.route("/users", methods=["GET"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def users():
     try:
         users_list = await list_users()
@@ -662,70 +756,78 @@ async def users():
 @app.route("/users", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def create_user_route():
     form = await request.form
     name = (form.get("name") or "").strip()
     role = (form.get("role") or "VIEWER").upper()
 
     if not name:
-        flash("Bitte einen Namen eingeben.", "error")
+        await flash("Bitte einen Namen eingeben.", "error")
         return redirect(url_for("users"))
 
     if role not in ("ADMIN", "EDITOR", "VIEWER"):
-        flash("Ungültige Rolle.", "error")
+        await flash("Ungültige Rolle.", "error")
         return redirect(url_for("users"))
 
     try:
         await create_user(name, role)
-        flash(
+        await flash(
             f"Nutzer '{name}' angelegt. Standard-Passwort: {DEFAULT_PASSWORD}. "
             f"Beim ersten Login muss es geändert werden.",
             "success",
         )
     except psycopg.IntegrityError:
-        flash("Ein Nutzer mit diesem Namen existiert bereits.", "error")
+        await flash("Ein Nutzer mit diesem Namen existiert bereits.", "error")
 
     return redirect(url_for("users"))
 
 @app.route("/users/<int:user_id>/role", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def update_user_role_route(user_id: int):
     form = await request.form
     role = (form.get("role") or "VIEWER").upper()
 
     if role not in ("ADMIN", "EDITOR", "VIEWER"):
-        flash("Ungültige Rolle.", "error")
+        await flash("Ungültige Rolle.", "error")
         return redirect(url_for("users"))
 
     target = await get_user_by_id(user_id)
     if target is None:
-        flash("Nutzer nicht gefunden.", "error")
+        await flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("users"))
+
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        await flash("Der Owner-Account kann hier nicht im Rang geändert werden.", "error")
         return redirect(url_for("users"))
 
     user = current_user()
     if target["id"] == user["id"] and role != "ADMIN":
-        flash("Du kannst dir nicht selbst die Admin-Rechte entziehen.", "error")
+        await flash("Du kannst dir nicht selbst die Admin-Rechte entziehen.", "error")
         return redirect(url_for("users"))
 
     await update_user_role(user_id, role)
-    flash(f"Rolle von '{target['name']}' auf {role} geändert.", "success")
+    await flash(f"Rolle von '{target['name']}' auf {role} geändert.", "success")
     return redirect(url_for("users"))
 
 @app.route("/users/<int:user_id>/reset-password", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def reset_user_password_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
-        flash("Nutzer nicht gefunden.", "error")
+        await flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("users"))
+
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        await flash("Das Owner-Passwort kann nicht durch die Adminverwaltung zurückgesetzt werden.", "error")
         return redirect(url_for("users"))
 
     await reset_user_password(user_id)
-    flash(
+    await flash(
         f"Passwort von '{target['name']}' auf {DEFAULT_PASSWORD} zurückgesetzt. "
         f"Es muss beim nächsten Login geändert werden.",
         "success",
@@ -735,21 +837,221 @@ async def reset_user_password_route(user_id: int):
 @app.route("/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def delete_user_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
-        flash("Nutzer nicht gefunden.", "error")
+        await flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("users"))
+
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        await flash("Der Owner-Account kann nicht gelöscht werden.", "error")
         return redirect(url_for("users"))
 
     user = current_user()
     if target["id"] == user["id"]:
-        flash("Du kannst dich nicht selbst löschen.", "error")
+        await flash("Du kannst dich nicht selbst löschen.", "error")
         return redirect(url_for("users"))
 
     await delete_user(user_id)
-    flash(f"Nutzer '{target['name']}' gelöscht.", "success")
+    await flash(f"Nutzer '{target['name']}' gelöscht.", "success")
     return redirect(url_for("users"))
+
+
+# --------------------------------------------------------------------------- #
+# Owner management (TheHacker only)
+# --------------------------------------------------------------------------- #
+
+def owner_only(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        user = current_user()
+        if not user or user.get("name") != "TheHacker" or user.get("role") != "OWNER":
+            await flash("Diese Seite ist ausschließlich für den Owner verfügbar.", "error")
+            return redirect(url_for("index"))
+        return await func(*args, **kwargs)
+    return wrapper
+
+
+async def promote_thehacker_to_owner(user_id: int) -> None:
+    """Promotes TheHacker robustly, even when an older DB role CHECK still exists."""
+    def _promote():
+        with get_connection() as conn:
+            # Older deployments may still have a CHECK constraint that only allows
+            # ADMIN/EDITOR/VIEWER. Remove every CHECK constraint that touches the
+            # role column, then install the canonical constraint including OWNER.
+            constraints = conn.execute(
+                """
+                SELECT DISTINCT c.conname
+                FROM pg_constraint c
+                JOIN pg_class t ON t.oid = c.conrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                JOIN pg_attribute a
+                  ON a.attrelid = t.oid
+                 AND a.attnum = ANY(c.conkey)
+                WHERE c.contype = 'c'
+                  AND t.relname = 'users'
+                  AND n.nspname = current_schema()
+                  AND a.attname = 'role'
+                """
+            ).fetchall()
+
+            for row in constraints:
+                constraint_name = row["conname"]
+                safe_name = constraint_name.replace('"', '""')
+                conn.execute(f'ALTER TABLE users DROP CONSTRAINT "{safe_name}"')
+
+            conn.execute(
+                "ALTER TABLE users ADD CONSTRAINT users_role_check "
+                "CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER'))"
+            )
+
+            existing_owner = conn.execute(
+                "SELECT id FROM users WHERE role = 'OWNER' AND id <> %s LIMIT 1",
+                (user_id,),
+            ).fetchone()
+            if existing_owner:
+                raise ValueError("Es existiert bereits ein anderer Owner.")
+
+            result = conn.execute(
+                "UPDATE users SET role = 'OWNER', locked = FALSE WHERE id = %s AND name = %s",
+                (user_id, "TheHacker"),
+            )
+            if result.rowcount != 1:
+                raise ValueError("TheHacker wurde in der Datenbank nicht gefunden.")
+
+            conn.commit()
+
+    await asyncio.to_thread(_promote)
+
+
+@app.route("/become-owner", methods=["POST"])
+@login_required
+@force_password_change
+@role_required("ADMIN")
+async def become_owner():
+    user = current_user()
+    if not user or user.get("name") != "TheHacker":
+        await flash("Nur TheHacker kann Owner werden.", "error")
+        return redirect(url_for("users"))
+
+    try:
+        await promote_thehacker_to_owner(user["id"])
+    except Exception as exc:
+        logger.exception("Owner promotion failed for user %s: %s", user.get("id"), exc)
+        await flash(
+            "Owner-Rang konnte nicht gesetzt werden. Datenbankfehler: " + str(exc),
+            "error",
+        )
+        return redirect(url_for("users"))
+
+    session["user_role"] = "OWNER"
+    await flash("Dein Rang wurde auf OWNER erhöht.", "success")
+
+    # Deliberately return to the already-working user management page first.
+    # This separates promotion errors from possible owner-page template errors.
+    return redirect(url_for("users"))
+
+
+@app.route("/owner", methods=["GET"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_page():
+    users_list = await list_users()
+    return await render_template("owner.html", users=users_list)
+
+
+@app.route("/owner/users/<int:user_id>/edit", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_edit_user(user_id: int):
+    target = await get_user_by_id(user_id)
+    if target is None:
+        await flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("owner_page"))
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        await flash("Der Owner-Account wird auf dieser Seite separat verwaltet.", "error")
+        return redirect(url_for("owner_page"))
+
+    form = await request.form
+    name = (form.get("name") or "").strip()
+    role = (form.get("role") or "VIEWER").upper()
+    new_password = form.get("new_password") or ""
+    locked = form.get("locked") == "on"
+
+    if not name:
+        await flash("Der Nutzername darf nicht leer sein.", "error")
+        return redirect(url_for("owner_page"))
+    if name == "TheHacker":
+        await flash("Der Name TheHacker ist für den Owner reserviert.", "error")
+        return redirect(url_for("owner_page"))
+    if role not in ("ADMIN", "EDITOR", "VIEWER"):
+        await flash("Ungültige Rolle.", "error")
+        return redirect(url_for("owner_page"))
+    if new_password and len(new_password) < 4:
+        await flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
+        return redirect(url_for("owner_page"))
+
+    try:
+        await run_db_query(
+            "UPDATE users SET name = %s, role = %s, locked = %s WHERE id = %s",
+            (name, role, locked, user_id),
+            commit=True,
+        )
+        if new_password:
+            await set_user_password(user_id, new_password)
+    except psycopg.IntegrityError:
+        await flash("Dieser Nutzername ist bereits vergeben.", "error")
+        return redirect(url_for("owner_page"))
+
+    await flash(f"Nutzer '{name}' wurde aktualisiert.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner/password", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_change_owner_password():
+    form = await request.form
+    new_password = form.get("new_password") or ""
+    confirm_password = form.get("confirm_password") or ""
+    if len(new_password) < 4:
+        await flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
+        return redirect(url_for("owner_page"))
+    if new_password != confirm_password:
+        await flash("Die Passwörter stimmen nicht überein.", "error")
+        return redirect(url_for("owner_page"))
+    if new_password == DEFAULT_PASSWORD:
+        await flash("Das Owner-Passwort darf nicht 1234 sein.", "error")
+        return redirect(url_for("owner_page"))
+    await set_user_password(current_user()["id"], new_password)
+    session["must_change_password"] = False
+    await flash("Owner-Passwort wurde geändert.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner/delete-entries", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_delete_entries():
+    await run_db_query("DELETE FROM entries", commit=True)
+    await flash("Alle Tagebucheinträge wurden gelöscht. Nutzerkonten bleiben erhalten.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner/delete-other-users", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_delete_other_users():
+    user = current_user()
+    await run_db_query("DELETE FROM users WHERE id <> %s", (user["id"],), commit=True)
+    await flash("Alle anderen Nutzer wurden gelöscht.", "success")
+    return redirect(url_for("owner_page"))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
