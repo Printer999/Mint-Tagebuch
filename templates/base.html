@@ -20,6 +20,9 @@
             {% if is_admin %}
             <a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint == 'users' else '' }}">Nutzerverwaltung</a>
             {% endif %}
+            {% if is_owner %}
+            <a href="{{ url_for('owner') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('owner') else '' }}">Owner</a>
+            {% endif %}
             
             <div class="topbar-user">
                 <span class="topbar-user-name">{{ current_user.name }}</span>

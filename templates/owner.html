@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero owner-hero">
+    <div>
+        <p class="eyebrow">Höchste Berechtigungsstufe</p>
+        <h1>Owner Bereich</h1>
+        <p class="hero-desc">Nur TheHacker hat Zugriff auf diese Seite. Hier kannst du Nutzer detailliert verwalten und alle Tagebucheinträge verwalten.</p>
+    </div>
+    <span class="role-badge role-owner owner-hero-badge">OWNER</span>
+</section>
+
+<section class="owner-danger-grid">
+    <div class="panel owner-danger-card">
+        <div>
+            <p class="eyebrow">Nutzer</p>
+            <h2>Alle anderen Nutzer löschen</h2>
+            <p>Entfernt alle Admin-, Editor- und Viewer-Konten. TheHacker bleibt erhalten.</p>
+        </div>
+        <form method="POST" action="{{ url_for('owner_delete_other_users') }}" onsubmit="return confirm('Wirklich ALLE anderen Nutzer löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
+            <button type="submit" class="owner-danger-btn">Alle anderen Nutzer löschen</button>
+        </form>
+    </div>
+
+    <div class="panel owner-danger-card owner-danger-card-critical">
+        <div>
+            <p class="eyebrow">Einträge</p>
+            <h2>Einträge löschen</h2>
+            <p>Löscht ausschließlich alle Tagebucheinträge. Alle Nutzerkonten und Rollen bleiben unverändert erhalten.</p>
+        </div>
+        <form method="POST" action="{{ url_for('owner_delete_entries') }}" onsubmit="return confirm('ACHTUNG: Alle Tagebucheinträge werden endgültig gelöscht. Nutzerkonten bleiben erhalten. Fortfahren?')">
+            <button type="submit" class="owner-danger-btn owner-danger-btn-critical">Einträge löschen</button>
+        </form>
+    </div>
+</section>
+
+<section class="panel owner-users-panel">
+    <div class="panel-header">
+        <h2>Nutzer bearbeiten</h2>
+        <p class="panel-hint">Name, Rolle, Sperrstatus und optional ein neues Passwort können direkt gespeichert werden.</p>
+    </div>
+
+    <div class="owner-user-list">
+        {% for u in users %}
+        <article class="owner-user-card {{ 'owner-user-card-protected' if u.role == 'OWNER' else '' }}">
+            {% if u.role == 'OWNER' %}
+            <div class="owner-user-head">
+                <div><strong>{{ u.name }}</strong><span class="role-badge role-owner">OWNER</span></div>
+                <span class="owner-lock-badge">Permanent geschützt</span>
+            </div>
+            <p class="owner-protected-note">Dieser Account kann nicht gelöscht, gesperrt, umbenannt oder im Rang verändert werden. Das Passwort kannst du hier direkt ändern.</p>
+            <form method="POST" action="{{ url_for('owner_change_owner_password') }}" class="owner-password-form">
+                <label><span>Neues Owner-Passwort</span><input type="password" name="new_password" minlength="4" required></label>
+                <label><span>Passwort wiederholen</span><input type="password" name="confirm_password" minlength="4" required></label>
+                <button type="submit" class="primary-btn owner-save-btn">Owner-Passwort ändern</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('owner_edit_user', user_id=u.id) }}" class="owner-user-form">
+                <label>
+                    <span>Name</span>
+                    <input type="text" name="name" value="{{ u.name }}" required>
+                </label>
+                <label>
+                    <span>Rolle</span>
+                    <select name="role" class="role-select role-select-{{ u.role|lower }}">
+                        <option value="ADMIN" {% if u.role == 'ADMIN' %}selected{% endif %}>Admin</option>
+                        <option value="EDITOR" {% if u.role == 'EDITOR' %}selected{% endif %}>Editor</option>
+                        <option value="VIEWER" {% if u.role == 'VIEWER' %}selected{% endif %}>Viewer</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Neues Passwort</span>
+                    <input type="password" name="new_password" placeholder="Leer lassen = unverändert" minlength="4">
+                </label>
+                <label class="owner-lock-field">
+                    <span>Accountstatus</span>
+                    <span class="owner-lock-control"><input type="checkbox" name="locked" {% if u.locked %}checked{% endif %}> Account sperren</span>
+                </label>
+                <button type="submit" class="primary-btn owner-save-btn">Änderungen speichern</button>
+            </form>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
