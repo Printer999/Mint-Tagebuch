@@ -21,7 +21,7 @@
             <a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint == 'users' else '' }}">Nutzerverwaltung</a>
             {% endif %}
             {% if is_owner %}
-            <a href="{{ url_for('owner') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('owner') else '' }}">Owner</a>
+            <a href="{{ url_for('owner_page') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('owner') else '' }}">Owner</a>
             {% endif %}
             
             <div class="topbar-user">
