@@ -442,21 +442,25 @@ button:disabled {
 
 .entry-menu-button {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: center;       /* vertikal zentrieren */
+  justify-content: center;   /* horizontal zentrieren */
   width: 36px;
   height: 36px;
   padding: 0;
-  padding-bottom: 6px;   /* ← drückt das ⋯ nach oben, jetzt mittig */
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.04);
   color: var(--text);
-  font-size: 1.5rem;
-  line-height: 1;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
-  overflow: hidden;
+  font-size: 0;    /* verhindert Inline-Lücke um das SVG */
+  line-height: 0;
+}
+
+.entry-menu-button svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .entry-menu-button:hover,

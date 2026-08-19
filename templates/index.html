@@ -73,7 +73,13 @@
                 
                 {% if can_edit %}
                 <div class="entry-menu-wrap">
-                    <button class="entry-menu-button" onclick="document.getElementById('menu-{{ entry.id }}').classList.toggle('open')">...</button>
+                    <button class="entry-menu-button" type="button" aria-label="Eintrag Optionen" aria-expanded="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <circle cx="5" cy="12" r="2"/>
+                            <circle cx="12" cy="12" r="2"/>
+                            <circle cx="19" cy="12" r="2"/>
+                        </svg>
+                    </button>
                     <div class="entry-menu" id="menu-{{ entry.id }}">
                         <a href="{{ url_for('edit_entry', entry_id=entry.id) }}" class="action-btn secondary">Bearbeiten</a>
                         <form action="{{ url_for('delete_entry_route', entry_id=entry.id) }}" method="POST" onsubmit="return confirm('Wirklich löschen?')">
