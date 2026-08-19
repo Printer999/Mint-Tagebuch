@@ -447,6 +447,7 @@ button:disabled {
   width: 36px;
   height: 36px;
   padding: 0;
+  padding-bottom: 6px;   /* ← drückt das ⋯ nach oben, jetzt mittig */
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.04);
@@ -455,6 +456,7 @@ button:disabled {
   line-height: 1;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
+  overflow: hidden;
 }
 
 .entry-menu-button:hover,
@@ -842,8 +844,21 @@ button:disabled {
 
 .user-create-form .primary-btn {
   width: auto;
-  height: 44px;
+  height: auto;
+  /* Gleiches vertikales Padding wie Input/Dropdown (0.8rem), damit alle
+     drei Elemente (Name, Rolle, Button) exakt gleich hoch sind. */
+  padding: 0.8rem 1.5rem;
   align-self: end;
+}
+
+/* Im Erstellen-Formular soll das Rollen-Dropdown die volle Spaltenbreite
+   ausfüllen (wie das Name-Feld daneben). Höhe und Padding werden NICHT
+   überschrieben - die Basis-Regel .role-select nutzt dasselbe Padding wie
+   die Input-Felder (0.8rem 0.9rem), sodass beide automatisch gleich hoch
+   sind. Der Button nutzt padding:0.8rem 1.5rem und passt damit ebenfalls
+   bündig. */
+.user-create-form .role-select {
+  width: 100%;
 }
 
 .users-table-wrap {
@@ -1061,9 +1076,5 @@ button:disabled {
 
   .topbar-nav {
     justify-content: center;
-  }
-
-  .user-create-form .primary-btn {
-    width: 100%;
   }
 }
