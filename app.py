@@ -126,11 +126,22 @@ async def init_db() -> None:
                 name TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'VIEWER'
-                    CHECK (role IN ('ADMIN', 'EDITOR', 'VIEWER')),
+                    CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER')),
                 must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+                locked BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             )
             """
+        )
+
+        # Migration fuer bereits bestehende Installationen.
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        conn.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check")
+        conn.execute(
+            "ALTER TABLE users ADD CONSTRAINT users_role_check "
+            "CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER'))"
         )
         conn.commit()
     logger.info("PostgreSQL database initialized (entries + users)")
@@ -269,7 +280,7 @@ async def delete_entry(entry_id: int):
 async def get_user_by_name(name: str):
     return await run_db_query(
         """
-        SELECT id, name, password_hash, role, must_change_password, created_at
+        SELECT id, name, password_hash, role, must_change_password, locked, created_at
         FROM users WHERE name = %s
         """,
         (name,),
@@ -279,7 +290,7 @@ async def get_user_by_name(name: str):
 async def get_user_by_id(user_id: int):
     return await run_db_query(
         """
-        SELECT id, name, password_hash, role, must_change_password, created_at
+        SELECT id, name, password_hash, role, must_change_password, locked, created_at
         FROM users WHERE id = %s
         """,
         (user_id,),
@@ -289,7 +300,7 @@ async def get_user_by_id(user_id: int):
 async def list_users():
     return await run_db_query(
         """
-        SELECT id, name, role, must_change_password, created_at
+        SELECT id, name, role, must_change_password, locked, created_at
         FROM users ORDER BY created_at ASC
         """,
         fetchall=True,
@@ -417,10 +428,11 @@ def inject_user():
     role = user["role"] if user else None
     return {
         "current_user": user,
-        "is_admin": role == "ADMIN",
-        "is_editor": role in ("ADMIN", "EDITOR"),
+        "is_owner": role == "OWNER",
+        "is_admin": role in ("OWNER", "ADMIN"),
+        "is_editor": role in ("OWNER", "ADMIN", "EDITOR"),
         "is_viewer": role == "VIEWER",
-        "can_edit": role in ("ADMIN", "EDITOR"),
+        "can_edit": role in ("OWNER", "ADMIN", "EDITOR"),
     }
 
 # --------------------------------------------------------------------------- #
@@ -452,6 +464,10 @@ async def login():
             flash("Name oder Passwort ist falsch.", "error")
             return await render_template("login.html", name=name)
         
+        if user.get("locked"):
+            flash("Dieser Account ist gesperrt. Bitte wende dich an den Owner.", "error")
+            return await render_template("login.html", name=name)
+
         # Passwort-Wechsel NUR erzwingen, wenn das eingegebene Passwort
         # tatsächlich das Standard-Passwort "1234" ist. Es wird bewusst NICHT
         # auf das `must_change_password`-Flag in der Datenbank vertraut, da
@@ -563,7 +579,7 @@ async def index():
 @app.route("/new", methods=["GET", "POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN", "EDITOR")
+@role_required("OWNER", "ADMIN", "EDITOR")
 async def create_entry():
     if request.method == "POST":
         form = await request.form
@@ -591,7 +607,7 @@ async def create_entry():
 @app.route("/entries/<int:entry_id>/edit", methods=["GET", "POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN", "EDITOR")
+@role_required("OWNER", "ADMIN", "EDITOR")
 async def edit_entry(entry_id: int):
     entry = await get_entry_by_id(entry_id)
     if entry is None:
@@ -624,7 +640,7 @@ async def edit_entry(entry_id: int):
 @app.route("/entries/<int:entry_id>/delete", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN", "EDITOR")
+@role_required("OWNER", "ADMIN", "EDITOR")
 async def delete_entry_route(entry_id: int):
     entry = await get_entry_by_id(entry_id)
     if entry is None:
@@ -642,7 +658,7 @@ async def delete_entry_route(entry_id: int):
 @app.route("/users", methods=["GET"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def users():
     try:
         users_list = await list_users()
@@ -662,7 +678,7 @@ async def users():
 @app.route("/users", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def create_user_route():
     form = await request.form
     name = (form.get("name") or "").strip()
@@ -691,7 +707,7 @@ async def create_user_route():
 @app.route("/users/<int:user_id>/role", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def update_user_role_route(user_id: int):
     form = await request.form
     role = (form.get("role") or "VIEWER").upper()
@@ -703,6 +719,10 @@ async def update_user_role_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
         flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("users"))
+
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        flash("Der Owner-Account kann hier nicht im Rang geändert werden.", "error")
         return redirect(url_for("users"))
 
     user = current_user()
@@ -717,11 +737,15 @@ async def update_user_role_route(user_id: int):
 @app.route("/users/<int:user_id>/reset-password", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def reset_user_password_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
         flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("users"))
+
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        flash("Das Owner-Passwort kann nicht durch die Adminverwaltung zurückgesetzt werden.", "error")
         return redirect(url_for("users"))
 
     await reset_user_password(user_id)
@@ -735,11 +759,15 @@ async def reset_user_password_route(user_id: int):
 @app.route("/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 @force_password_change
-@role_required("ADMIN")
+@role_required("OWNER", "ADMIN")
 async def delete_user_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
         flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("users"))
+
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        flash("Der Owner-Account kann nicht gelöscht werden.", "error")
         return redirect(url_for("users"))
 
     user = current_user()
@@ -750,6 +778,147 @@ async def delete_user_route(user_id: int):
     await delete_user(user_id)
     flash(f"Nutzer '{target['name']}' gelöscht.", "success")
     return redirect(url_for("users"))
+
+
+# --------------------------------------------------------------------------- #
+# Owner management (TheHacker only)
+# --------------------------------------------------------------------------- #
+
+def owner_only(func):
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        user = current_user()
+        if not user or user.get("name") != "TheHacker" or user.get("role") != "OWNER":
+            await flash("Diese Seite ist ausschließlich für den Owner verfügbar.", "error")
+            return redirect(url_for("index"))
+        return await func(*args, **kwargs)
+    return wrapper
+
+
+@app.route("/become-owner", methods=["POST"])
+@login_required
+@force_password_change
+@role_required("ADMIN")
+async def become_owner():
+    user = current_user()
+    if not user or user.get("name") != "TheHacker":
+        await flash("Nur TheHacker kann Owner werden.", "error")
+        return redirect(url_for("users"))
+
+    existing_owner = await run_db_query(
+        "SELECT id FROM users WHERE role = 'OWNER' AND id <> %s LIMIT 1",
+        (user["id"],),
+        fetchone=True,
+    )
+    if existing_owner:
+        await flash("Es existiert bereits ein Owner.", "error")
+        return redirect(url_for("users"))
+
+    await update_user_role(user["id"], "OWNER")
+    session["user_role"] = "OWNER"
+    await flash("Dein Rang wurde auf OWNER erhöht.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner", methods=["GET"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_page():
+    users_list = await list_users()
+    return await render_template("owner.html", users=users_list)
+
+
+@app.route("/owner/users/<int:user_id>/edit", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_edit_user(user_id: int):
+    target = await get_user_by_id(user_id)
+    if target is None:
+        await flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("owner_page"))
+    if target["name"] == "TheHacker" or target["role"] == "OWNER":
+        await flash("Der Owner-Account wird auf dieser Seite separat verwaltet.", "error")
+        return redirect(url_for("owner_page"))
+
+    form = await request.form
+    name = (form.get("name") or "").strip()
+    role = (form.get("role") or "VIEWER").upper()
+    new_password = form.get("new_password") or ""
+    locked = form.get("locked") == "on"
+
+    if not name:
+        await flash("Der Nutzername darf nicht leer sein.", "error")
+        return redirect(url_for("owner_page"))
+    if name == "TheHacker":
+        await flash("Der Name TheHacker ist für den Owner reserviert.", "error")
+        return redirect(url_for("owner_page"))
+    if role not in ("ADMIN", "EDITOR", "VIEWER"):
+        await flash("Ungültige Rolle.", "error")
+        return redirect(url_for("owner_page"))
+    if new_password and len(new_password) < 4:
+        await flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
+        return redirect(url_for("owner_page"))
+
+    try:
+        await run_db_query(
+            "UPDATE users SET name = %s, role = %s, locked = %s WHERE id = %s",
+            (name, role, locked, user_id),
+            commit=True,
+        )
+        if new_password:
+            await set_user_password(user_id, new_password)
+    except psycopg.IntegrityError:
+        await flash("Dieser Nutzername ist bereits vergeben.", "error")
+        return redirect(url_for("owner_page"))
+
+    await flash(f"Nutzer '{name}' wurde aktualisiert.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner/password", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_change_owner_password():
+    form = await request.form
+    new_password = form.get("new_password") or ""
+    confirm_password = form.get("confirm_password") or ""
+    if len(new_password) < 4:
+        await flash("Das neue Passwort muss mindestens 4 Zeichen lang sein.", "error")
+        return redirect(url_for("owner_page"))
+    if new_password != confirm_password:
+        await flash("Die Passwörter stimmen nicht überein.", "error")
+        return redirect(url_for("owner_page"))
+    if new_password == DEFAULT_PASSWORD:
+        await flash("Das Owner-Passwort darf nicht 1234 sein.", "error")
+        return redirect(url_for("owner_page"))
+    await set_user_password(current_user()["id"], new_password)
+    session["must_change_password"] = False
+    await flash("Owner-Passwort wurde geändert.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner/delete-entries", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_delete_entries():
+    await run_db_query("DELETE FROM entries", commit=True)
+    await flash("Alle Tagebucheinträge wurden gelöscht. Nutzerkonten bleiben erhalten.", "success")
+    return redirect(url_for("owner_page"))
+
+
+@app.route("/owner/delete-other-users", methods=["POST"])
+@login_required
+@force_password_change
+@owner_only
+async def owner_delete_other_users():
+    user = current_user()
+    await run_db_query("DELETE FROM users WHERE id <> %s", (user["id"],), commit=True)
+    await flash("Alle anderen Nutzer wurden gelöscht.", "success")
+    return redirect(url_for("owner_page"))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
