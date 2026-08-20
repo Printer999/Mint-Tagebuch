@@ -25,6 +25,11 @@ OWNER_NAME = "TheHacker"
 VALID_ROLES = ("OWNER", "ADMIN", "EDITOR", "VIEWER")
 EDIT_ROLES = ("OWNER", "ADMIN", "EDITOR")
 ADMIN_ROLES = ("OWNER", "ADMIN")
+# Used when a name is unknown so failed logins take the same bcrypt path as
+# known accounts. Generating it here guarantees that it is a valid bcrypt hash.
+DUMMY_PASSWORD_HASH = bcrypt.hashpw(
+    b"invalid-login-password", bcrypt.gensalt()
+)
 
 
 def _normalize_database_url(raw: str) -> str:
@@ -628,9 +633,15 @@ async def login():
         stored_hash = (
             user["password_hash"].encode("utf-8")
             if user
-            else b"$2b$12$" + b"0" * 53
+            else DUMMY_PASSWORD_HASH
         )
-        ok = bcrypt.checkpw(password.encode("utf-8"), stored_hash)
+        try:
+            ok = bcrypt.checkpw(password.encode("utf-8"), stored_hash)
+        except ValueError:
+            # A corrupt stored hash must behave like a failed login, not an
+            # unhandled server error.
+            logger.warning("Invalid password hash for login name %s", name)
+            ok = False
 
         if not user or not ok:
             await flash("Name oder Passwort ist falsch.", "error")
