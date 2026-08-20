@@ -18,11 +18,10 @@
             {% if current_role in ('OWNER', 'ADMIN', 'EDITOR') %}
             <a href="{{ url_for('create_entry') }}" class="{{ 'active' if request.endpoint == 'create_entry' else '' }}">Neuer Eintrag</a>
             {% endif %}
-            {% if current_role in ('OWNER', 'ADMIN') %}
-            <a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint == 'users' else '' }}">Nutzerverwaltung</a>
-            {% endif %}
             {% if current_role == 'OWNER' %}
             <a href="{{ url_for('owner_page') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('owner') else '' }}">Owner</a>
+            {% elif current_role == 'ADMIN' %}
+            <a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint == 'users' else '' }}">Nutzerverwaltung</a>
             {% endif %}
             
             <div class="topbar-user">

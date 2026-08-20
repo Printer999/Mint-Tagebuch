@@ -830,11 +830,26 @@ async def delete_entry_route(entry_id: int):
 # User management routes: ADMIN + OWNER
 # --------------------------------------------------------------------------- #
 
+def management_endpoint() -> str:
+    """OWNER uses the combined owner page; ADMIN keeps the normal users page."""
+    user = current_user()
+    if user and user.get("role") == "OWNER":
+        return "owner_page"
+    return "users"
+
+
+def redirect_to_management():
+    return redirect(url_for(management_endpoint()))
+
+
 @app.route("/users", methods=["GET"])
 @login_required
 @force_password_change
 @role_required(*ADMIN_ROLES)
 async def users():
+    if current_user() and current_user().get("role") == "OWNER":
+        return redirect(url_for("owner_page"))
+
     try:
         users_list = await list_users()
     except Exception as exc:
@@ -859,15 +874,15 @@ async def create_user_route():
 
     if not name:
         await flash("Bitte einen Namen eingeben.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     if role not in ("ADMIN", "EDITOR", "VIEWER"):
         await flash("Ungültige Rolle.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     if name == OWNER_NAME:
         await flash(f"Der Name '{OWNER_NAME}' ist für den Owner reserviert.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     try:
         await create_user(name, role)
@@ -879,7 +894,7 @@ async def create_user_route():
     except psycopg.IntegrityError:
         await flash("Ein Nutzer mit diesem Namen existiert bereits.", "error")
 
-    return redirect(url_for("users"))
+    return redirect_to_management()
 
 
 @app.route("/users/<int:user_id>/role", methods=["POST"])
@@ -892,25 +907,25 @@ async def update_user_role_route(user_id: int):
 
     if role not in ("ADMIN", "EDITOR", "VIEWER"):
         await flash("Ungültige Rolle.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     target = await get_user_by_id(user_id)
     if target is None:
         await flash("Nutzer nicht gefunden.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     if target["name"] == OWNER_NAME or target["role"] == "OWNER":
         await flash("Der Owner-Rang kann hier nicht verändert werden.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     user = current_user()
     if target["id"] == user["id"] and role not in ADMIN_ROLES:
         await flash("Du kannst dir nicht selbst die Admin-Rechte entziehen.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     await update_user_role(user_id, role)
     await flash(f"Rolle von '{target['name']}' auf {role} geändert.", "success")
-    return redirect(url_for("users"))
+    return redirect_to_management()
 
 
 @app.route("/users/<int:user_id>/reset-password", methods=["POST"])
@@ -921,11 +936,11 @@ async def reset_user_password_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
         await flash("Nutzer nicht gefunden.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     if target["name"] == OWNER_NAME or target["role"] == "OWNER":
         await flash("Das Owner-Passwort kann hier nicht zurückgesetzt werden.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     await reset_user_password(user_id)
     await flash(
@@ -933,7 +948,7 @@ async def reset_user_password_route(user_id: int):
         "Es muss beim nächsten Login geändert werden.",
         "success",
     )
-    return redirect(url_for("users"))
+    return redirect_to_management()
 
 
 @app.route("/users/<int:user_id>/delete", methods=["POST"])
@@ -944,20 +959,20 @@ async def delete_user_route(user_id: int):
     target = await get_user_by_id(user_id)
     if target is None:
         await flash("Nutzer nicht gefunden.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     if target["name"] == OWNER_NAME or target["role"] == "OWNER":
         await flash("Der Owner kann nicht gelöscht werden.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     user = current_user()
     if target["id"] == user["id"]:
         await flash("Du kannst dich nicht selbst löschen.", "error")
-        return redirect(url_for("users"))
+        return redirect_to_management()
 
     await delete_user(user_id)
     await flash(f"Nutzer '{target['name']}' gelöscht.", "success")
-    return redirect(url_for("users"))
+    return redirect_to_management()
 
 
 @app.route("/users/become-owner", methods=["POST"])

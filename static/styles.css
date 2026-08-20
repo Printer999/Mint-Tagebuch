@@ -1429,7 +1429,9 @@ button:disabled {
   background: rgba(148, 163, 184, 0.05);
   color: var(--text);
   font-size: 0.82rem;
+}
 
+.owner-lock-control {
   cursor: pointer;
   user-select: none;
   transition: border-color 0.15s ease, background-color 0.15s ease;
@@ -1443,29 +1445,19 @@ button:disabled {
 .owner-lock-control input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
-
   width: 22px;
   height: 22px;
   min-width: 22px;
-
   margin: 0;
   padding: 0;
-
   border: 2px solid rgba(155, 180, 199, 0.55);
   border-radius: 6px;
-
   background-color: rgba(7, 19, 29, 0.75);
   background-position: center;
   background-repeat: no-repeat;
   background-size: 13px 13px;
-
   cursor: pointer;
-
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .owner-lock-control input[type="checkbox"]:hover {
@@ -1475,7 +1467,6 @@ button:disabled {
 .owner-lock-control input[type="checkbox"]:checked {
   border-color: var(--danger);
   background-color: var(--danger);
-
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2307131d' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 12 10 17 19 7'/%3E%3C/svg%3E");
 }
 
@@ -1543,6 +1534,68 @@ button:disabled {
   }
 
   .owner-save-btn {
+    width: 100%;
+  }
+}
+/* ----------------------------------------------------------------------- */
+/* Combined Owner management page                                          */
+/* ----------------------------------------------------------------------- */
+
+.owner-create-user-panel {
+  margin-bottom: 1.5rem;
+}
+
+.owner-user-created {
+  color: var(--muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.owner-user-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(145, 168, 189, 0.12);
+  flex-wrap: wrap;
+}
+
+.owner-user-actions form {
+  margin: 0;
+}
+
+.owner-user-actions .action-btn {
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+}
+
+.owner-danger-section {
+  margin-top: 1.5rem;
+}
+
+.owner-danger-heading {
+  margin-bottom: 0.9rem;
+}
+
+.owner-danger-heading h2 {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .owner-user-created {
+    white-space: normal;
+  }
+
+  .owner-user-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .owner-user-actions form,
+  .owner-user-actions .action-btn {
     width: 100%;
   }
 }

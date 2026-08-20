@@ -21,11 +21,10 @@
         <p class="panel-hint">Schnellzugriff auf deine Verwaltungsbereiche.</p>
     </div>
     <div class="form-actions dashboard-admin-actions" style="flex-wrap: wrap;">
-        {% if current_role in ('OWNER', 'ADMIN') %}
-        <a href="{{ url_for('users') }}" class="primary-btn" style="width: auto;">Nutzerverwaltung</a>
-        {% endif %}
         {% if current_role == 'OWNER' %}
-        <a href="{{ url_for('owner_page') }}" class="primary-btn" style="width: auto;">Owner-Bereich</a>
+        <a href="{{ url_for('owner_page') }}" class="primary-btn" style="width: auto;">Owner-Verwaltung</a>
+        {% elif current_role == 'ADMIN' %}
+        <a href="{{ url_for('users') }}" class="primary-btn" style="width: auto;">Nutzerverwaltung</a>
         {% endif %}
     </div>
 </section>

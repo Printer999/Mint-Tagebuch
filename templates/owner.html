@@ -3,55 +3,72 @@
 {% block content %}
 <section class="hero owner-hero">
     <div>
-        <p class="eyebrow">Höchste Berechtigungsstufe</p>
-        <h1>Owner Bereich</h1>
-        <p class="hero-desc">Nur TheHacker hat Zugriff auf diese Seite. Hier kannst du Nutzer detailliert verwalten und alle Tagebucheinträge verwalten.</p>
+        <p class="eyebrow">Zentrale Verwaltung</p>
+        <h1>Owner-Verwaltung</h1>
+        <p class="hero-desc">Alle Nutzer- und Owner-Funktionen sind hier an einer Stelle zusammengefasst.</p>
     </div>
     <span class="role-badge role-owner owner-hero-badge">OWNER</span>
 </section>
 
-<section class="owner-danger-grid">
-    <div class="panel owner-danger-card">
-        <div>
-            <p class="eyebrow">Nutzer</p>
-            <h2>Alle anderen Nutzer löschen</h2>
-            <p>Entfernt alle Admin-, Editor- und Viewer-Konten. TheHacker bleibt erhalten.</p>
-        </div>
-        <form method="POST" action="{{ url_for('owner_delete_other_users') }}" onsubmit="return confirm('Wirklich ALLE anderen Nutzer löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
-            <button type="submit" class="owner-danger-btn">Alle anderen Nutzer löschen</button>
-        </form>
+<section class="panel create-user-panel owner-create-user-panel">
+    <div class="panel-header">
+        <h2>Neuen Nutzer anlegen</h2>
+        <p class="panel-hint">Neue Konten erhalten zunächst das Standard-Passwort 1234 und müssen es beim ersten Login ändern.</p>
     </div>
-
-    <div class="panel owner-danger-card owner-danger-card-critical">
-        <div>
-            <p class="eyebrow">Einträge</p>
-            <h2>Einträge löschen</h2>
-            <p>Löscht ausschließlich alle Tagebucheinträge. Alle Nutzerkonten und Rollen bleiben unverändert erhalten.</p>
-        </div>
-        <form method="POST" action="{{ url_for('owner_delete_entries') }}" onsubmit="return confirm('ACHTUNG: Alle Tagebucheinträge werden endgültig gelöscht. Nutzerkonten bleiben erhalten. Fortfahren?')">
-            <button type="submit" class="owner-danger-btn owner-danger-btn-critical">Einträge löschen</button>
-        </form>
-    </div>
+    <form class="user-create-form" method="POST" action="{{ url_for('create_user_route') }}">
+        <label>
+            <span>Name</span>
+            <input type="text" name="name" required>
+        </label>
+        <label>
+            <span>Rolle</span>
+            <select name="role" class="role-select role-select-neutral">
+                <option value="VIEWER">Viewer (Nur Lesen)</option>
+                <option value="EDITOR">Editor (Lesen + Schreiben)</option>
+                <option value="ADMIN">Admin (Volle Kontrolle)</option>
+            </select>
+        </label>
+        <button type="submit" class="primary-btn">Erstellen</button>
+    </form>
 </section>
 
 <section class="panel owner-users-panel">
     <div class="panel-header">
-        <h2>Nutzer bearbeiten</h2>
-        <p class="panel-hint">Name, Rolle, Sperrstatus und optional ein neues Passwort können direkt gespeichert werden.</p>
+        <h2>Nutzerverwaltung</h2>
+        <p class="panel-hint">Hier kannst du Namen, Rollen, Sperrstatus und Passwörter verwalten sowie einzelne Konten löschen.</p>
     </div>
 
     <div class="owner-user-list">
         {% for u in users %}
         <article class="owner-user-card {{ 'owner-user-card-protected' if u.role == 'OWNER' else '' }}">
-            {% if u.role == 'OWNER' %}
             <div class="owner-user-head">
-                <div><strong>{{ u.name }}</strong><span class="role-badge role-owner">OWNER</span></div>
-                <span class="owner-lock-badge">Permanent geschützt</span>
+                <div>
+                    <strong>{{ u.name }}</strong>
+                    <span class="role-badge role-{{ u.role|lower }}">{{ u.role }}</span>
+                    {% if u.role == 'OWNER' %}
+                    <span class="owner-lock-badge">Permanent geschützt</span>
+                    {% elif u.locked %}
+                    <span class="status-pill status-locked">Gesperrt</span>
+                    {% elif u.must_change_password %}
+                    <span class="status-pill status-open">Passwort ändern nötig</span>
+                    {% else %}
+                    <span class="status-pill status-active">Aktiv</span>
+                    {% endif %}
+                </div>
+                <span class="owner-user-created">Erstellt: {{ u.created_at.strftime('%d.%m.%Y %H:%M') if u.created_at else '-' }}</span>
             </div>
-            <p class="owner-protected-note">Dieser Account kann nicht gelöscht, gesperrt, umbenannt oder im Rang verändert werden. Das Passwort kannst du hier direkt ändern.</p>
+
+            {% if u.role == 'OWNER' %}
+            <p class="owner-protected-note">Dieser Account kann nicht gelöscht, gesperrt, umbenannt oder im Rang verändert werden. Das Owner-Passwort kannst du hier direkt ändern.</p>
             <form method="POST" action="{{ url_for('owner_change_owner_password') }}" class="owner-password-form">
-                <label><span>Neues Owner-Passwort</span><input type="password" name="new_password" minlength="4" required></label>
-                <label><span>Passwort wiederholen</span><input type="password" name="confirm_password" minlength="4" required></label>
+                <label>
+                    <span>Neues Owner-Passwort</span>
+                    <input type="password" name="new_password" minlength="4" required>
+                </label>
+                <label>
+                    <span>Passwort wiederholen</span>
+                    <input type="password" name="confirm_password" minlength="4" required>
+                </label>
                 <button type="submit" class="primary-btn owner-save-btn">Owner-Passwort ändern</button>
             </form>
             {% else %}
@@ -74,13 +91,55 @@
                 </label>
                 <label class="owner-lock-field">
                     <span>Accountstatus</span>
-                    <span class="owner-lock-control"><input type="checkbox" name="locked" {% if u.locked %}checked{% endif %}> Account sperren</span>
+                    <span class="owner-lock-control">
+                        <input type="checkbox" name="locked" {% if u.locked %}checked{% endif %}>
+                        Account sperren
+                    </span>
                 </label>
                 <button type="submit" class="primary-btn owner-save-btn">Änderungen speichern</button>
             </form>
+
+            <div class="owner-user-actions">
+                <form method="POST" action="{{ url_for('reset_user_password_route', user_id=u.id) }}" onsubmit="return confirm('Passwort dieses Nutzers wirklich auf 1234 zurücksetzen?')">
+                    <button type="submit" class="action-btn warning">Passwort auf 1234 zurücksetzen</button>
+                </form>
+                <form method="POST" action="{{ url_for('delete_user_route', user_id=u.id) }}" onsubmit="return confirm('Diesen Nutzer wirklich löschen?')">
+                    <button type="submit" class="action-btn danger">Nutzer löschen</button>
+                </form>
+            </div>
             {% endif %}
         </article>
         {% endfor %}
+    </div>
+</section>
+
+<section class="owner-danger-section">
+    <div class="panel-header owner-danger-heading">
+        <h2>Gefahrenbereich</h2>
+        <p class="panel-hint">Diese Aktionen wirken auf viele Datensätze und können nicht rückgängig gemacht werden.</p>
+    </div>
+    <div class="owner-danger-grid">
+        <div class="panel owner-danger-card">
+            <div>
+                <p class="eyebrow">Nutzer</p>
+                <h2>Alle anderen Nutzer löschen</h2>
+                <p>Entfernt alle Admin-, Editor- und Viewer-Konten. TheHacker bleibt erhalten.</p>
+            </div>
+            <form method="POST" action="{{ url_for('owner_delete_other_users') }}" onsubmit="return confirm('Wirklich ALLE anderen Nutzer löschen? Diese Aktion kann nicht rückgängig gemacht werden.')">
+                <button type="submit" class="owner-danger-btn">Alle anderen Nutzer löschen</button>
+            </form>
+        </div>
+
+        <div class="panel owner-danger-card owner-danger-card-critical">
+            <div>
+                <p class="eyebrow">Einträge</p>
+                <h2>Einträge löschen</h2>
+                <p>Löscht ausschließlich alle Tagebucheinträge. Alle Nutzerkonten und Rollen bleiben unverändert erhalten.</p>
+            </div>
+            <form method="POST" action="{{ url_for('owner_delete_entries') }}" onsubmit="return confirm('ACHTUNG: Alle Tagebucheinträge werden endgültig gelöscht. Nutzerkonten bleiben erhalten. Fortfahren?')">
+                <button type="submit" class="owner-danger-btn owner-danger-btn-critical">Einträge löschen</button>
+            </form>
+        </div>
     </div>
 </section>
 {% endblock %}
