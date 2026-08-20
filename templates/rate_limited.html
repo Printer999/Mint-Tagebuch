@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <p class="eyebrow">Zu viele Anfragen</p>
+    <h1>Kurz pausieren</h1>
+    <p class="hero-desc">Von deiner Verbindung wurden gerade zu viele Anfragen gesendet. Bitte warte {{ retry_after }} {{ 'Sekunde' if retry_after == 1 else 'Sekunden' }} und versuche es dann erneut.</p>
+    <div class="bottom-actions">
+        <a class="primary-btn" href="{{ url_for('index') }}" style="width: auto;">Erneut versuchen</a>
+    </div>
+</section>
+{% endblock %}
+
+{% block auth_content %}
+<div class="auth-brand">
+    <div class="auth-logo auth-logo-warning">!</div>
+    <p class="auth-eyebrow">Zu viele Anfragen</p>
+    <h1 class="auth-title">Kurz pausieren</h1>
+    <p class="auth-subtitle">Von deiner Verbindung wurden gerade zu viele Anfragen gesendet. Bitte warte {{ retry_after }} {{ 'Sekunde' if retry_after == 1 else 'Sekunden' }} und versuche es dann erneut.</p>
+</div>
+
+<a class="primary-btn" href="{{ url_for('login') }}">Erneut versuchen</a>
+{% endblock %}

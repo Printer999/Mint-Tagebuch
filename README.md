@@ -118,5 +118,9 @@ Die App läuft unter http://localhost:5000.
 - **Datenbank:** PostgreSQL (psycopg 3)
 - **Passwort-Hashing:** bcrypt (12 Runden Salt)
 - **Sessions:** Signierte HttpOnly-Cookies via Quart `session`
+- **Rate Limiting:** Pro Client-IP gelten 600 normale Requests pro Minute,
+  40 Loginversuche in 5 Minuten sowie 8 Versuche je Nutzerkonto in 15 Minuten.
+  Render übergibt dafür die Client-IP über `X-Forwarded-For`; bei einem
+  anderen Reverse Proxy muss `TRUST_PROXY_HEADERS=true` bewusst gesetzt werden.
 - **Rollen:** `ADMIN`, `EDITOR`, `VIEWER` als DB-CHECK-Constraint
 - **Auth-Decorator:** `@login_required`, `@role_required(...)`, `@force_password_change`

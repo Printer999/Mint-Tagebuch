@@ -26,6 +26,8 @@ services:
         value: 3.12.7
       - key: SECRET_KEY
         generateValue: true  # ein langer, zufälliger Wert für signierte Sessions
+      - key: TRUST_PROXY_HEADERS
+        value: "true"  # Render liefert die Client-IP über X-Forwarded-For
       - key: DATABASE_URL
         fromDatabase:
           name: mint-tagebuch-db

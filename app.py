@@ -2,6 +2,8 @@ import asyncio
 import functools
 import logging
 import os
+import time
+from collections import deque
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -11,6 +13,7 @@ from psycopg.rows import dict_row
 from quart import (
     Quart,
     flash,
+    make_response,
     redirect,
     render_template,
     request,
@@ -25,6 +28,11 @@ OWNER_NAME = "TheHacker"
 VALID_ROLES = ("OWNER", "ADMIN", "EDITOR", "VIEWER")
 EDIT_ROLES = ("OWNER", "ADMIN", "EDITOR")
 ADMIN_ROLES = ("OWNER", "ADMIN")
+TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 # Used when a name is unknown so failed logins take the same bcrypt path as
 # known accounts. Generating it here guarantees that it is a valid bcrypt hash.
 DUMMY_PASSWORD_HASH = bcrypt.hashpw(
@@ -106,6 +114,91 @@ def configure_logger() -> logging.Logger:
 
 
 logger = configure_logger()
+
+
+# --------------------------------------------------------------------------- #
+# Request rate limiting
+# --------------------------------------------------------------------------- #
+
+class SlidingWindowRateLimiter:
+    """Small in-memory limiter for one Hypercorn worker.
+
+    The key cap keeps a flood of unique client addresses from growing memory
+    without bound. The deployed service uses one worker, so this covers every
+    request handled by the app instance.
+    """
+
+    def __init__(
+        self, maximum_requests: int, window_seconds: int, *, max_keys: int = 10_000
+    ):
+        self.maximum_requests = maximum_requests
+        self.window_seconds = window_seconds
+        self.max_keys = max_keys
+        self._requests: dict[str, deque[float]] = {}
+        self._lock = asyncio.Lock()
+        self._last_cleanup = time.monotonic()
+
+    def _remove_expired(self, requests: deque[float], now: float) -> None:
+        cutoff = now - self.window_seconds
+        while requests and requests[0] <= cutoff:
+            requests.popleft()
+
+    def _cleanup(self, now: float) -> None:
+        for key, requests in list(self._requests.items()):
+            self._remove_expired(requests, now)
+            if not requests:
+                del self._requests[key]
+        self._last_cleanup = now
+
+    async def check(self, key: str) -> int | None:
+        """Record a request and return retry seconds when its limit is hit."""
+        now = time.monotonic()
+
+        async with self._lock:
+            if now - self._last_cleanup >= self.window_seconds:
+                self._cleanup(now)
+
+            requests = self._requests.get(key)
+            if requests is None:
+                if len(self._requests) >= self.max_keys:
+                    return self.window_seconds
+                requests = deque()
+                self._requests[key] = requests
+
+            self._remove_expired(requests, now)
+            if len(requests) >= self.maximum_requests:
+                retry_after = requests[0] + self.window_seconds - now
+                return max(1, int(retry_after) + 1)
+
+            requests.append(now)
+            return None
+
+
+# Normal browsing remains generous for classrooms and shared networks. Login
+# limits are narrower because every attempt performs an expensive bcrypt check.
+REQUEST_RATE_LIMITER = SlidingWindowRateLimiter(600, 60)
+LOGIN_IP_RATE_LIMITER = SlidingWindowRateLimiter(40, 5 * 60)
+LOGIN_ACCOUNT_RATE_LIMITER = SlidingWindowRateLimiter(8, 15 * 60)
+
+
+def client_address() -> str:
+    """Return the real client IP when a trusted reverse proxy provides it."""
+    if TRUST_PROXY_HEADERS:
+        forwarded_for = request.headers.get("X-Forwarded-For", "")
+        forwarded_address = forwarded_for.split(",", 1)[0].strip()
+        if forwarded_address:
+            return forwarded_address[:64]
+
+    return (request.remote_addr or "unknown")[:64]
+
+
+async def rate_limited_response(retry_after: int):
+    response = await make_response(
+        await render_template("rate_limited.html", retry_after=retry_after), 429
+    )
+    response.headers["Retry-After"] = str(retry_after)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # --------------------------------------------------------------------------- #
@@ -562,6 +655,21 @@ async def before_serving():
 
 
 @app.before_request
+async def limit_request_rate():
+    # Assets are cacheable and do not reach the database, so they do not need
+    # to consume a visitor's application request budget.
+    if request.endpoint in (None, "static"):
+        return None
+
+    retry_after = await REQUEST_RATE_LIMITER.check(client_address())
+    if retry_after is not None:
+        logger.warning("Request rate limit reached for %s", client_address())
+        return await rate_limited_response(retry_after)
+
+    return None
+
+
+@app.before_request
 async def sync_logged_in_user():
     if request.endpoint == "static":
         return None
@@ -628,6 +736,16 @@ async def login():
         if not name or not password:
             await flash("Bitte Name und Passwort eingeben.", "error")
             return await render_template("login.html", name=name)
+
+        address = client_address()
+        ip_retry_after = await LOGIN_IP_RATE_LIMITER.check(address)
+        account_retry_after = await LOGIN_ACCOUNT_RATE_LIMITER.check(
+            name.casefold()[:128]
+        )
+        retry_after = max(ip_retry_after or 0, account_retry_after or 0)
+        if retry_after:
+            logger.warning("Login rate limit reached for %s", address)
+            return await rate_limited_response(retry_after)
 
         user = await get_user_by_name(name)
         stored_hash = (
