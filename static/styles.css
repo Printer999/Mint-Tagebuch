@@ -1439,3 +1439,33 @@ button:disabled {
     margin-top: 2.25rem;
   }
 }
+
+/* Rolle im Owner-Nutzerformular sauber untereinander */
+.owner-user-form label > span {
+  display: block;
+}
+
+.owner-user-form .role-select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Gefährliche Owner-Aktionen eindeutig kennzeichnen */
+.owner-danger-section .owner-danger-btn {
+  background: rgba(239, 126, 126, 0.12);
+  border: 1px solid rgba(239, 126, 126, 0.45);
+  color: #ffd7d7;
+}
+
+.owner-danger-section .owner-danger-btn:hover {
+  background: rgba(239, 126, 126, 0.22);
+  border-color: rgba(239, 126, 126, 0.7);
+  box-shadow: 0 10px 24px rgba(239, 126, 126, 0.12);
+}
+
+.owner-danger-section .owner-danger-btn-critical {
+  background: linear-gradient(135deg, #ef7e7e, #d85d72);
+  border-color: transparent;
+  color: #2b080d;
+}
