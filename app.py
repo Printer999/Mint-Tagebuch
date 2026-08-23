@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 import os
+import secrets
 import time
 from collections import deque
 from pathlib import Path
@@ -13,6 +14,7 @@ from psycopg.rows import dict_row
 from quart import (
     Quart,
     flash,
+    jsonify,
     make_response,
     redirect,
     render_template,
@@ -28,6 +30,9 @@ OWNER_NAME = "TheHacker"
 VALID_ROLES = ("OWNER", "ADMIN", "EDITOR", "VIEWER")
 EDIT_ROLES = ("OWNER", "ADMIN", "EDITOR")
 ADMIN_ROLES = ("OWNER", "ADMIN")
+# A browser sends a small heartbeat once a minute.  After two missed
+# heartbeats, the account is shown as offline in the owner administration.
+PRESENCE_TIMEOUT_SECONDS = 120
 TRUST_PROXY_HEADERS = os.getenv("TRUST_PROXY_HEADERS", "").lower() in {
     "1",
     "true",
@@ -268,6 +273,21 @@ async def init_db() -> None:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_sessions (
+                    session_token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS user_sessions_presence_idx
+                ON user_sessions (user_id, last_seen_at)
+                """
+            )
 
             # Migrate databases created by older app versions.
             conn.execute(
@@ -318,7 +338,7 @@ async def init_db() -> None:
             conn.commit()
 
     await asyncio.to_thread(_init)
-    logger.info("PostgreSQL database initialized (entries + users + owner migration)")
+    logger.info("PostgreSQL database initialized (entries + users + sessions)")
 
 
 async def seed_admin() -> None:
@@ -492,17 +512,31 @@ async def get_user_by_id(user_id: int):
 async def list_users():
     return await run_db_query(
         """
-        SELECT id, name, role, must_change_password, locked, created_at
-        FROM users
+        SELECT
+            u.id,
+            u.name,
+            u.role,
+            u.must_change_password,
+            u.locked,
+            u.created_at,
+            EXISTS (
+                SELECT 1
+                FROM user_sessions AS active_session
+                WHERE active_session.user_id = u.id
+                  AND active_session.last_seen_at >= CURRENT_TIMESTAMP
+                      - (%s * INTERVAL '1 second')
+            ) AS is_online
+        FROM users AS u
         ORDER BY
-            CASE role
+            CASE u.role
                 WHEN 'OWNER' THEN 0
                 WHEN 'ADMIN' THEN 1
                 WHEN 'EDITOR' THEN 2
                 ELSE 3
             END,
-            created_at ASC
+            u.created_at ASC
         """,
+        (PRESENCE_TIMEOUT_SECONDS,),
         fetchall=True,
     )
 
@@ -569,6 +603,36 @@ async def set_user_password(user_id: int, new_password: str) -> None:
         (password_hash, user_id),
         commit=True,
     )
+
+
+async def touch_user_session(user_id: int) -> None:
+    """Create or refresh the current browser's presence record."""
+    session_token = session.get("presence_token")
+    if not session_token:
+        session_token = secrets.token_urlsafe(32)
+        session["presence_token"] = session_token
+
+    await run_db_query(
+        """
+        INSERT INTO user_sessions (session_token, user_id, last_seen_at)
+        VALUES (%s, %s, CURRENT_TIMESTAMP)
+        ON CONFLICT (session_token) DO UPDATE
+        SET user_id = EXCLUDED.user_id, last_seen_at = CURRENT_TIMESTAMP
+        """,
+        (session_token, user_id),
+        commit=True,
+    )
+
+
+async def end_user_session() -> None:
+    """Remove only this browser's presence record on logout or invalidation."""
+    session_token = session.get("presence_token")
+    if session_token:
+        await run_db_query(
+            "DELETE FROM user_sessions WHERE session_token = %s",
+            (session_token,),
+            commit=True,
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -680,6 +744,7 @@ async def sync_logged_in_user():
 
     db_user = await get_user_by_id(user_id)
     if not db_user:
+        await end_user_session()
         session.clear()
         if request.endpoint not in ("login", "logout"):
             await flash("Dein Nutzerkonto existiert nicht mehr.", "error")
@@ -692,6 +757,7 @@ async def sync_logged_in_user():
         db_user = await get_user_by_id(user_id)
 
     if db_user["locked"] and db_user["name"] != OWNER_NAME:
+        await end_user_session()
         session.clear()
         if request.endpoint != "login":
             await flash("Dein Konto ist gesperrt.", "error")
@@ -702,6 +768,7 @@ async def sync_logged_in_user():
     session["user_role"] = db_user["role"]
     session["must_change_password"] = bool(db_user["must_change_password"])
     session["locked"] = bool(db_user["locked"])
+    await touch_user_session(db_user["id"])
     return None
 
 
@@ -783,6 +850,7 @@ async def login():
         session["user_role"] = user["role"]
         session["must_change_password"] = is_default_password
         session["locked"] = bool(user["locked"])
+        await touch_user_session(user["id"])
 
         logger.info("User %s logged in with role %s", user["name"], user["role"])
 
@@ -795,9 +863,17 @@ async def login():
 
 @app.route("/logout", methods=["POST"])
 async def logout():
+    await end_user_session()
     session.clear()
     await flash("Du wurdest abgemeldet.", "success")
     return redirect(url_for("login"))
+
+
+@app.route("/presence", methods=["POST"])
+@login_required
+async def presence():
+    """Heartbeat endpoint used by the open application page."""
+    return "", 204
 
 
 @app.route("/change-password", methods=["GET", "POST"])
@@ -1149,6 +1225,17 @@ async def become_owner():
 async def owner_page():
     users_list = await list_users()
     return await render_template("owner.html", users=users_list)
+
+
+@app.route("/owner/presence", methods=["GET"])
+@login_required
+@force_password_change
+@owner_required
+async def owner_presence():
+    users_list = await list_users()
+    return jsonify(
+        users=[{"id": user["id"], "is_online": user["is_online"]} for user in users_list]
+    )
 
 
 @app.route("/owner/users/<int:user_id>/edit", methods=["POST"])

@@ -69,5 +69,21 @@
     </div>
 {% endif %}
 
+{% if current_user or request.endpoint == 'change_password' %}
+<script>
+    (() => {
+        const sendHeartbeat = () => {
+            fetch("{{ url_for('presence') }}", {
+                method: "POST",
+                credentials: "same-origin",
+                cache: "no-store"
+            }).catch(() => {});
+        };
+
+        window.setInterval(sendHeartbeat, 60_000);
+    })();
+</script>
+{% endif %}
+
 </body>
 </html>

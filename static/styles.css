@@ -1038,6 +1038,36 @@ button:disabled {
   color: #c8f6e4;
 }
 
+.presence-badge {
+  gap: 0.42rem;
+}
+
+.presence-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px currentColor;
+  opacity: 0.22;
+}
+
+.presence-online {
+  background: rgba(97, 208, 168, 0.1);
+  border-color: rgba(97, 208, 168, 0.38);
+  color: #c8f6e4;
+}
+
+.presence-online .presence-dot {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(97, 208, 168, 0.16);
+}
+
+.presence-offline {
+  background: rgba(145, 168, 189, 0.08);
+  border-color: rgba(145, 168, 189, 0.25);
+  color: #b9c6d3;
+}
+
 .created-cell {
   color: var(--muted);
   white-space: nowrap;

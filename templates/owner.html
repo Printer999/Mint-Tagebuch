@@ -45,6 +45,10 @@
                 <div>
                     <strong>{{ u.name }}</strong>
                     <span class="role-badge role-{{ u.role|lower }}">{{ u.role }}</span>
+                    <span class="status-pill presence-badge {{ 'presence-online' if u.is_online else 'presence-offline' }}" data-presence-user="{{ u.id }}">
+                        <span class="presence-dot" aria-hidden="true"></span>
+                        <span class="presence-label">{{ 'Online' if u.is_online else 'Offline' }}</span>
+                    </span>
                     {% if u.role == 'OWNER' %}
                     <span class="owner-lock-badge">Permanent geschützt</span>
                     {% elif u.locked %}
@@ -142,4 +146,31 @@
         </div>
     </div>
 </section>
+
+<script>
+    (() => {
+        const refreshPresence = async () => {
+            try {
+                const response = await fetch("{{ url_for('owner_presence') }}", {
+                    credentials: "same-origin",
+                    cache: "no-store"
+                });
+                if (!response.ok) return;
+
+                const { users } = await response.json();
+                users.forEach(({ id, is_online: isOnline }) => {
+                    const badge = document.querySelector(`[data-presence-user="${id}"]`);
+                    if (!badge) return;
+                    badge.classList.toggle("presence-online", isOnline);
+                    badge.classList.toggle("presence-offline", !isOnline);
+                    badge.querySelector(".presence-label").textContent = isOnline ? "Online" : "Offline";
+                });
+            } catch (_) {
+                // The next refresh updates the status after a temporary network error.
+            }
+        };
+
+        window.setInterval(refreshPresence, 30_000);
+    })();
+</script>
 {% endblock %}
