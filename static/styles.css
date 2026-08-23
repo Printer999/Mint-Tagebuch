@@ -1283,13 +1283,13 @@ button:disabled {
 
 .owner-login-as-btn {
   width: auto;
-  min-height: 32px;
-  padding: 0.35rem 0.65rem;
+  min-height: 38px;
+  padding: 0.45rem 0.8rem;
   border-color: rgba(145, 168, 189, 0.2);
   background: transparent;
   color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .owner-login-as-btn:hover {
