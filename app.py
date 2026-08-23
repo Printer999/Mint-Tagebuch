@@ -294,6 +294,14 @@ async def init_db() -> None:
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked "
                 "BOOLEAN NOT NULL DEFAULT FALSE"
             )
+            # User names must be unique even when only their capitalization
+            # differs (for example "Anna" and "anna").
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS users_name_case_insensitive_unique
+                ON users (LOWER(name))
+                """
+            )
 
             # Older versions only allowed ADMIN/EDITOR/VIEWER. Remove the old
             # role CHECK constraint without relying on its automatically chosen name.
@@ -1085,7 +1093,7 @@ async def create_user_route():
         await flash("Ungültige Rolle.", "error")
         return redirect_to_management()
 
-    if name == OWNER_NAME:
+    if name.casefold() == OWNER_NAME.casefold():
         await flash(f"Der Name '{OWNER_NAME}' ist für den Owner reserviert.", "error")
         return redirect_to_management()
 
@@ -1295,7 +1303,7 @@ async def owner_edit_user(user_id: int):
         await flash("Der Nutzername darf nicht leer sein.", "error")
         return redirect(url_for("owner_page"))
 
-    if name == OWNER_NAME:
+    if name.casefold() == OWNER_NAME.casefold():
         await flash(f"Der Name '{OWNER_NAME}' ist für den Owner reserviert.", "error")
         return redirect(url_for("owner_page"))
 
