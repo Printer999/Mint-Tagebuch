@@ -39,7 +39,7 @@ body {
 }
 
 /* ----------------------------------------------------------------------- */
-/* App shell + topbar                                                       */
+/* Application shell and navigation                                         */
 /* ----------------------------------------------------------------------- */
 
 .app-shell {
@@ -166,7 +166,7 @@ body {
 }
 
 /* ----------------------------------------------------------------------- */
-/* Hero + stats + content grids                                            */
+/* Page layout and dashboard                                                */
 /* ----------------------------------------------------------------------- */
 
 .hero {
@@ -263,6 +263,10 @@ h1 {
   gap: 1rem;
 }
 
+.dashboard-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .panel {
   background: rgba(10, 20, 31, 0.75);
   border: 1px solid var(--border);
@@ -292,9 +296,10 @@ h1 {
 }
 
 /* ----------------------------------------------------------------------- */
-/* Forms                                                                    */
+/* Shared forms and controls                                                */
 /* ----------------------------------------------------------------------- */
 
+/* Form layout and fields */
 .entry-form {
   display: grid;
   gap: 1rem;
@@ -336,6 +341,7 @@ label span {
   text-transform: uppercase;
 }
 
+/* Rating selector */
 .rating-picker {
   display: flex;
   align-items: center;
@@ -427,6 +433,7 @@ button:disabled {
   box-shadow: none;
 }
 
+/* Diary entries */
 .entry-list {
   display: grid;
   gap: 0.9rem;
@@ -500,6 +507,25 @@ button:disabled {
   margin: 0;
 }
 
+.entry-menu > .action-btn,
+.entry-menu form,
+.entry-menu form .action-btn {
+  width: 100%;
+}
+
+.entry-menu form {
+  display: grid;
+}
+
+.entry-menu .action-btn {
+  min-height: 40px;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+/* Actions */
 .action-btn {
   display: inline-flex;
   align-items: center;
@@ -645,7 +671,7 @@ button:disabled {
 }
 
 /* ----------------------------------------------------------------------- */
-/* Flash messages                                                           */
+/* Feedback messages                                                        */
 /* ----------------------------------------------------------------------- */
 
 .flash-container {
@@ -673,7 +699,7 @@ button:disabled {
 }
 
 /* ----------------------------------------------------------------------- */
-/* Auth screens (login + change password)                                   */
+/* Authentication screens                                                   */
 /* ----------------------------------------------------------------------- */
 
 .auth-body {
@@ -799,9 +825,10 @@ button:disabled {
 }
 
 /* ----------------------------------------------------------------------- */
-/* User management page                                                     */
+/* User management                                                          */
 /* ----------------------------------------------------------------------- */
 
+/* Role badges */
 .role-pills {
   display: flex;
   flex-wrap: wrap;
@@ -846,6 +873,7 @@ button:disabled {
   font-size: 1.15rem;
 }
 
+/* Create user form */
 .user-create-form {
   display: grid;
   gap: 1rem;
@@ -872,6 +900,7 @@ button:disabled {
   width: 100%;
 }
 
+/* User table */
 .users-table-wrap {
   overflow-x: auto;
   border-radius: 12px;
@@ -1015,6 +1044,7 @@ button:disabled {
   transform: none;
 }
 
+/* Status and presence */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1369,7 +1399,7 @@ button:disabled {
 }
 
 /* ----------------------------------------------------------------------- */
-/* Responsive                                                               */
+/* Responsive overrides                                                     */
 /* ----------------------------------------------------------------------- */
 
 @media (max-width: 850px) {
@@ -1408,31 +1438,7 @@ button:disabled {
   }
 }
 
-/* Dashboard: one flexible full-width column */
-.dashboard-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-/* Entry action menu: edit/delete must have identical dimensions */
-.entry-menu > .action-btn,
-.entry-menu form,
-.entry-menu form .action-btn {
-  width: 100%;
-}
-
-.entry-menu form {
-  display: grid;
-}
-
-.entry-menu .action-btn {
-  min-height: 40px;
-  margin: 0;
-  padding: 0.6rem 0.9rem;
-  font-size: 0.82rem;
-  line-height: 1.2;
-}
-
-/* Flexible layout for tablets and phones */
+/* Tablet layout */
 @media (max-width: 1000px) {
   .app-shell {
     border-radius: 22px;
