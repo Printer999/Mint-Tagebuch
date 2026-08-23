@@ -266,7 +266,7 @@ wheels = [
 [[package]]
 name = "mint-tagebuch"
 version = "0.2.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "bcrypt" },
     { name = "hypercorn" },

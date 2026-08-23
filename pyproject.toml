@@ -14,9 +14,7 @@ dependencies = [
     "hypercorn>=0.17.0",
 ]
 
-[project.scripts]
-mint-tagebuch = "mint_tagebuch:main"
-
-[build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+# This is a Quart application started via Procfile, not an installable Python
+# package.  Therefore uv must only install its dependencies during deployment.
+package = false
