@@ -1238,6 +1238,39 @@ async def owner_presence():
     )
 
 
+@app.route("/owner/users/<int:user_id>/login-as", methods=["POST"])
+@login_required
+@force_password_change
+@owner_required
+async def owner_login_as_user(user_id: int):
+    """Let the owner start a fresh session as an unlocked non-owner account."""
+    target = await get_user_by_id(user_id)
+    if target is None:
+        await flash("Nutzer nicht gefunden.", "error")
+        return redirect(url_for("owner_page"))
+
+    if target["name"] == OWNER_NAME or target["role"] == "OWNER":
+        await flash("Der Owner-Account kann nicht über diesen Weg gewechselt werden.", "error")
+        return redirect(url_for("owner_page"))
+
+    if target["locked"]:
+        await flash("In einen gesperrten Account kann nicht gewechselt werden.", "error")
+        return redirect(url_for("owner_page"))
+
+    await end_user_session()
+    session.clear()
+    session["user_id"] = target["id"]
+    session["user_name"] = target["name"]
+    session["user_role"] = target["role"]
+    session["must_change_password"] = bool(target["must_change_password"])
+    session["locked"] = False
+    await touch_user_session(target["id"])
+
+    logger.info("Owner switched into user account %s", target["name"])
+    await flash(f"Du bist jetzt als '{target['name']}' angemeldet.", "success")
+    return redirect(url_for("index"))
+
+
 @app.route("/owner/users/<int:user_id>/edit", methods=["POST"])
 @login_required
 @force_password_change
