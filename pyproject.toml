@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "quart>=0.21.0",
-    "psycopg[binary]>=3.2.1",
+    "pymysql[rsa]>=1.1.1",
     "bcrypt>=4.2.0",
     "hypercorn>=0.17.0",
 ]

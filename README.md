@@ -1,7 +1,7 @@
 # Mint Week Tagebuch
 
 Persönliches Mint-Woche Tagebuch mit Login-System, drei Benutzerrollen und
-Nutzerverwaltung. Geschrieben in Python mit dem Quart-Framework und PostgreSQL.
+Nutzerverwaltung. Geschrieben in Python mit dem Quart-Framework und MySQL.
 
 ## Funktionen
 
@@ -31,63 +31,84 @@ Rang:     ADMIN
 ```
 Beim ersten Login wirst du aufgefordert, das Passwort zu ändern.
 
-## Deployment auf Render
+## MySQL einrichten
 
-Dieses Repository ist so vorbereitet, dass du es nur noch Render übergeben
-musst. Die `render.yaml` definiert automatisch alles:
+Voraussetzungen: Python ab 3.12 und ein erreichbarer MySQL-Server.
+Das Tabellenschema ist auch mit MySQL 5.5 kompatibel. Rollen und Bewertungen
+werden in den Formularrouten geprüft; zusätzliche `CHECK`-Constraints werden
+von MySQL erst ab 8.0.16 durchgesetzt.
 
-### Schritte
-1. **Repository nach GitHub pushen** (falls noch nicht geschehen):
-   ```bash
-   git init
-   git add .
-   git commit -m "Login-System + Nutzerverwaltung + Render-Deployment"
-   git branch -M main
-   git remote add origin https://github.com/Printer999/Mint-Tagebuch.git
-   git push -u origin main
+1. Einmalig eine leere Datenbank auf deinem MySQL-Server anlegen, zum Beispiel
+   in MySQL Workbench oder phpMyAdmin:
+
+   ```sql
+   CREATE DATABASE mint_tagebuch
+       CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
    ```
 
-2. Auf [render.com](https://render.com) einloggen → **New** → **Blueprint**.
+2. Direkt am Anfang von `app.py` die Standardwerte in diesen Variablen eintragen:
 
-3. Das GitHub-Repository `Printer999/Mint-Tagebuch` auswählen.
+   ```python
+   MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+   MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+   MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "mint_tagebuch")
+   MYSQL_USER = os.getenv("MYSQL_USER", "root")
+   MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+   ```
 
-4. Render erkennt die `render.yaml` automatisch und legt an:
-   - Eine **PostgreSQL-Datenbank** (`mint-tagebuch-db`, Plan: free)
-   - Einen **Python-Web-Service** (`mint-tagebuch`, Plan: free)
+   Ändere jeweils den zweiten Wert, beispielsweise `""` zu `"dein-passwort"`.
+   Host und Port sind getrennt; beim Host keine URL oder `mysql://` eintragen.
+   Der Datenbankbenutzer braucht `CREATE`, `REFERENCES`, `SELECT`, `INSERT`,
+   `UPDATE` und `DELETE` für diese Datenbank. Die Tabellen `entries`, `users` und
+   `user_sessions` erstellt die Anwendung beim Start automatisch.
 
-5. Render setzt automatisch diese Umgebungsvariablen:
-   - `DATABASE_URL` — die Render-PostgreSQL-Verbindungs-URL
-   - `SECRET_KEY` — ein zufälliger Wert für signierte Sessions
-   - `PYTHON_VERSION` — `3.12.7`
+   Alternativ kannst du gleichnamige Umgebungsvariablen setzen; diese haben
+   Vorrang. Für veröffentlichte Deployments die Zugangsdaten darüber setzen,
+   damit keine echten Passwörter ins Repository gelangen.
 
-6. Beim ersten Start werden automatisch die Tabellen erstellt und der
-   Admin-Account `TheHacker` / `1234` / `ADMIN` angelegt.
+3. Abhängigkeiten installieren und starten:
 
-7. Nach dem Deploy die Render-URL öffnen und mit `TheHacker` / `1234` einloggen.
-   Beim ersten Login Passwort ändern — fertig.
+   ```bash
+   uv sync
+   uv run python app.py
+   ```
 
-> Der `DATABASE_URL` von Render liefert `postgres://`-Schemata. Die App
-> normalisiert das automatisch zu `postgresql://`, damit psycopg3 es akzeptiert.
+   Oder mit einer aktivierten Python-Umgebung und pip:
 
-## Lokale Entwicklung
+   ```bash
+   pip install -r requirements.txt
+   python app.py
+   ```
 
-```bash
-# Abhängigkeiten installieren (empfohlen mit uv)
-uv sync
-# oder mit pip:
-pip install -r requirements.txt
+Die App läuft unter http://localhost:5000. Beim ersten Start wird der oben
+beschriebene Admin-Account automatisch angelegt.
 
-# Datenbank-URL setzen (optional, es gibt einen Dev-Default)
-export DATABASE_URL="postgresql://user:pass@host:5432/mint_tagebuch?sslmode=require"
-export SECRET_KEY="dev-secret"
+Für einen Server mit TLS-CA-Zertifikat kannst du zusätzlich `MYSQL_SSL_CA`
+am Anfang von `app.py` oder als Umgebungsvariable auf den Zertifikatspfad setzen.
+Die Verbindung prüft dann Zertifikat und Servernamen.
 
-# Server starten
-python app.py
-# oder
-hypercorn app:app --bind 0.0.0.0:5000
-```
+Bestehende PostgreSQL-Daten werden durch die Umstellung nicht automatisch
+übernommen. Die MySQL-Datenbank startet leer; vorhandene Einträge und Nutzer
+müssen bei Bedarf separat übertragen werden. `DATABASE_URL` und die bisherigen
+`PG*`-Umgebungsvariablen werden nicht mehr verwendet.
 
-Die App läuft unter http://localhost:5000.
+## Deployment auf Render
+
+Die `render.yaml` erstellt den Python-Web-Service. Einen erreichbaren
+MySQL-Server mit bereits angelegter Datenbank stellst du separat bereit.
+
+1. Repository auf GitHub aktualisieren und auf Render als **Blueprint** auswählen.
+2. Beim Einrichten `MYSQL_HOST`, `MYSQL_DATABASE`, `MYSQL_USER` und
+   `MYSQL_PASSWORD` angeben. `MYSQL_PORT` ist standardmäßig `3306`.
+3. Falls dein Anbieter ein CA-Zertifikat verlangt, dieses als Secret File
+   bereitstellen und `MYSQL_SSL_CA` auf dessen Pfad setzen.
+4. Render erzeugt den `SECRET_KEY` für signierte Sessions automatisch.
+5. Nach dem Deploy die Render-URL öffnen und mit `TheHacker` / `1234` einloggen.
+   Beim ersten Login das Passwort ändern.
+
+Bei einem bestehenden Render-Service die `MYSQL_*`-Variablen vor dem nächsten
+Deployment eintragen. Die bisherige PostgreSQL-Datenbank wird von dieser
+Anwendung nicht mehr genutzt.
 
 ## Projektstruktur
 
@@ -108,19 +129,47 @@ Die App läuft unter http://localhost:5000.
 ├── requirements.txt       # Für Render (pip)
 ├── runtime.txt            # Python-Version
 ├── Procfile               # Render/Heroku-Start-Kommando
-├── render.yaml            # Render-Blueprint (DB + Web-Service)
+├── render.yaml            # Render-Blueprint (Web-Service mit MySQL-Zugangsdaten)
 └── README.md
 ```
 
 ## Technische Details
 
 - **Framework:** Quart 0.21 (asynchron, ASGI)
-- **Datenbank:** PostgreSQL (psycopg 3)
+- **Datenbank:** MySQL über PyMySQL, InnoDB und `utf8mb4` für Umlaute und Emojis.
+  Zeitstempel werden in UTC gespeichert. Sitzungstokens werden mit Beachtung
+  der Groß-/Kleinschreibung verglichen. Nutzernamen sind auf 191 Zeichen begrenzt,
+  damit ihr Index auch auf älteren InnoDB-Versionen funktioniert. Die Sortierung
+  `utf8mb4_unicode_ci` behandelt Groß-/Kleinschreibung und Akzentvarianten bei der
+  Eindeutigkeit gleich; beim Login bleibt die genaue Schreibweise relevant.
 - **Passwort-Hashing:** bcrypt (12 Runden Salt)
 - **Sessions:** Signierte HttpOnly-Cookies via Quart `session`
 - **Rate Limiting:** Pro Client-IP gelten 600 normale Requests pro Minute,
   40 Loginversuche in 5 Minuten sowie 8 Versuche je Nutzerkonto in 15 Minuten.
   Render übergibt dafür die Client-IP über `X-Forwarded-For`; bei einem
   anderen Reverse Proxy muss `TRUST_PROXY_HEADERS=true` bewusst gesetzt werden.
-- **Rollen:** `ADMIN`, `EDITOR`, `VIEWER` als DB-CHECK-Constraint
+- **Rollen:** `OWNER`, `ADMIN`, `EDITOR`, `VIEWER` als DB-CHECK-Constraint
 - **Auth-Decorator:** `@login_required`, `@role_required(...)`, `@force_password_change`
+
+## Tests
+
+```bash
+uv run python -m unittest discover -s tests -v
+```
+
+Diese Regressionstests prüfen Transaktionen, Fehlerbehandlung und die betroffenen
+Routen mit simulierten Datenbankantworten. Sie benötigen keinen MySQL-Server;
+eine echte Datenbankverbindung wird damit nicht getestet.
+
+Für einen zusätzlichen Integrationstest mit dem eingetragenen MySQL-Server
+unter PowerShell:
+
+```powershell
+$env:MINT_TEST_MYSQL = "1"
+uv run python -m unittest discover -s tests -v
+Remove-Item Env:MINT_TEST_MYSQL
+```
+
+Der Integrationstest legt wie ein normaler App-Start die Tabellen und den
+Start-Admin an. Zusätzliche Testeinträge und Testnutzer werden innerhalb einer
+Transaktion angelegt und anschließend vollständig zurückgerollt.

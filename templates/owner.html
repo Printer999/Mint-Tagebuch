@@ -18,7 +18,7 @@
     <form class="user-create-form" method="POST" action="{{ url_for('create_user_route') }}">
         <label>
             <span>Name</span>
-            <input type="text" name="name" required>
+            <input type="text" name="name" maxlength="191" required>
         </label>
         <label>
             <span>Rolle</span>
@@ -79,7 +79,7 @@
             <form method="POST" action="{{ url_for('owner_edit_user', user_id=u.id) }}" class="owner-user-form">
                 <label>
                     <span>Name</span>
-                    <input type="text" name="name" value="{{ u.name }}" required>
+                    <input type="text" name="name" value="{{ u.name }}" maxlength="191" required>
                 </label>
                 <label>
                     <span>Rolle</span>

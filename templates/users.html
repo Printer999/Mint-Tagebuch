@@ -26,7 +26,7 @@
     <form class="user-create-form" method="POST" action="{{ url_for('create_user_route') }}">
         <label>
             <span>Name</span>
-            <input type="text" name="name" required>
+            <input type="text" name="name" maxlength="191" required>
         </label>
         <label>
             <span>Rolle</span>

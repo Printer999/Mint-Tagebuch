@@ -1,15 +1,8 @@
 # Render Blueprint für das Mint Week Tagebuch
 # https://render.com/docs/blueprint-spec
 #
-# Dieser Blueprint legt einen PostgreSQL-Datenbank-Service und einen
-# Python-Web-Service an und verknüpft beide automatisch über die
-# DATABASE_URL-Umgebungsvariable, die Render setzt.
-
-databases:
-  - name: mint-tagebuch-db
-    databaseName: mint_tagebuch
-    plan: free
-    ipAllowList: []  # Zugriff nur aus Render-internen Services
+# Dieser Blueprint legt den Python-Web-Service an.
+# Die Zugangsdaten eines erreichbaren MySQL-Servers beim Deployment eintragen.
 
 services:
   - type: web
@@ -28,7 +21,13 @@ services:
         generateValue: true  # ein langer, zufälliger Wert für signierte Sessions
       - key: TRUST_PROXY_HEADERS
         value: "true"  # Render liefert die Client-IP über X-Forwarded-For
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mint-tagebuch-db
-          property: connectionString
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_DATABASE
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false

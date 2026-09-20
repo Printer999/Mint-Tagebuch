@@ -6,11 +6,10 @@ import secrets
 import time
 from collections import deque
 from pathlib import Path
-from urllib.parse import quote_plus
 
 import bcrypt
-import psycopg
-from psycopg.rows import dict_row
+import pymysql
+from pymysql.cursors import DictCursor
 from quart import (
     Quart,
     flash,
@@ -23,6 +22,16 @@ from quart import (
     url_for,
 )
 
+# MySQL-Zugangsdaten: Die Standardwerte rechts kannst du direkt hier ändern.
+# Gleichnamige Umgebungsvariablen haben Vorrang (z. B. beim Deployment).
+MYSQL_HOST = os.getenv("MYSQL_HOST", "sql7.freesqldatabase.com")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "sql7837418")
+MYSQL_USER = os.getenv("MYSQL_USER", "sql7837418")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "GhGFlF2E4n")
+# Optional: Pfad zum CA-Zertifikat für eine geprüfte TLS-Verbindung.
+MYSQL_SSL_CA = os.getenv("MYSQL_SSL_CA", "")
+
 BASE_DIR = Path(__file__).resolve().parent
 LOG_PATH = BASE_DIR / "mint_tagebuch.log"
 DEFAULT_PASSWORD = "1234"
@@ -30,6 +39,8 @@ OWNER_NAME = "TheHacker"
 VALID_ROLES = ("OWNER", "ADMIN", "EDITOR", "VIEWER")
 EDIT_ROLES = ("OWNER", "ADMIN", "EDITOR")
 ADMIN_ROLES = ("OWNER", "ADMIN")
+# Older InnoDB versions allow at most 767 bytes per indexed column.
+MAX_USERNAME_LENGTH = 191
 # A browser sends a small heartbeat once a minute.  After two missed
 # heartbeats, the account is shown as offline in the owner administration.
 PRESENCE_TIMEOUT_SECONDS = 120
@@ -45,44 +56,6 @@ DUMMY_PASSWORD_HASH = bcrypt.hashpw(
 )
 
 
-def _normalize_database_url(raw: str) -> str:
-    raw = (raw or "").strip().strip('"').strip("'")
-
-    # Tolerate a common Render setup mistake where the value itself is pasted as
-    # "DATABASE_URL=postgresql://...".
-    if raw.upper().startswith("DATABASE_URL="):
-        raw = raw.split("=", 1)[1].strip().strip('"').strip("'")
-
-    if raw.startswith("postgres://"):
-        raw = "postgresql://" + raw[len("postgres://"):]
-
-    return raw
-
-
-def _build_database_url() -> str:
-    raw = _normalize_database_url(os.getenv("DATABASE_URL", ""))
-    if raw:
-        return raw
-
-    host = (os.getenv("PGHOST") or "").strip()
-    port = (os.getenv("PGPORT") or "5432").strip()
-    database = (os.getenv("PGDATABASE") or "").strip()
-    user = (os.getenv("PGUSER") or "").strip()
-    password = os.getenv("PGPASSWORD") or ""
-
-    if host and database and user:
-        return (
-            f"postgresql://{quote_plus(user)}:{quote_plus(password)}"
-            f"@{host}:{port}/{quote_plus(database)}"
-        )
-
-    raise RuntimeError(
-        "Keine PostgreSQL-Verbindung konfiguriert. Setze auf Render DATABASE_URL "
-        "oder PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD."
-    )
-
-
-DATABASE_URL = _build_database_url()
 SECRET_KEY = os.getenv("SECRET_KEY", "mint-week-dev-secret-change-me")
 
 app = Quart(
@@ -211,7 +184,20 @@ async def rate_limited_response(retry_after: int):
 # --------------------------------------------------------------------------- #
 
 def get_connection():
-    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    return pymysql.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        database=MYSQL_DATABASE,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD.encode("utf-8"),
+        charset="utf8mb4",
+        cursorclass=DictCursor,
+        autocommit=False,
+        init_command="SET time_zone = '+00:00'",
+        ssl_ca=MYSQL_SSL_CA or None,
+        ssl_verify_cert=bool(MYSQL_SSL_CA),
+        ssl_verify_identity=bool(MYSQL_SSL_CA),
+    )
 
 
 async def run_db_query(
@@ -225,18 +211,21 @@ async def run_db_query(
     def _execute():
         conn = get_connection()
         try:
-            cursor = conn.execute(query, params)
-            result = None
-            if fetchall:
-                result = cursor.fetchall()
-            elif fetchone:
-                result = cursor.fetchone()
-            else:
-                result = getattr(cursor, "lastrowid", None)
+            with conn.cursor() as cursor:
+                cursor.execute(query, params)
+                if fetchall:
+                    result = cursor.fetchall()
+                elif fetchone:
+                    result = cursor.fetchone()
+                else:
+                    result = cursor.lastrowid
 
             if commit:
                 conn.commit()
             return result
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 
@@ -245,113 +234,66 @@ async def run_db_query(
 
 async def init_db() -> None:
     def _init():
-        with get_connection() as conn:
-            conn.execute(
+        with get_connection() as conn, conn.cursor() as cursor:
+            cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS entries (
-                    id SERIAL PRIMARY KEY,
+                    id INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     entry_date DATE NOT NULL UNIQUE,
-                    high_light TEXT NOT NULL,
-                    low_light TEXT NOT NULL,
+                    high_light LONGTEXT NOT NULL,
+                    low_light LONGTEXT NOT NULL,
                     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-                    notes TEXT,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                )
+                    notes LONGTEXT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
                 """
             )
-            conn.execute(
+            cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL UNIQUE,
-                    password_hash TEXT NOT NULL,
-                    role TEXT NOT NULL DEFAULT 'VIEWER'
+                    id INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(191) COLLATE utf8mb4_unicode_ci NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    role VARCHAR(6) NOT NULL DEFAULT 'VIEWER'
                         CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER')),
                     must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
                     locked BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                )
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY users_name_case_insensitive_unique (name)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
                 """
             )
-            conn.execute(
+            cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS user_sessions (
-                    session_token TEXT PRIMARY KEY,
-                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
+                    session_token VARCHAR(64) CHARACTER SET ascii
+                        COLLATE ascii_bin PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    INDEX user_sessions_presence_idx (user_id, last_seen_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
                 """
             )
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS user_sessions_presence_idx
-                ON user_sessions (user_id, last_seen_at)
-                """
-            )
-
-            # Migrate databases created by older app versions.
-            conn.execute(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked "
-                "BOOLEAN NOT NULL DEFAULT FALSE"
-            )
-            # User names must be unique even when only their capitalization
-            # differs (for example "Anna" and "anna").
-            conn.execute(
-                """
-                CREATE UNIQUE INDEX IF NOT EXISTS users_name_case_insensitive_unique
-                ON users (LOWER(name))
-                """
-            )
-
-            # Older versions only allowed ADMIN/EDITOR/VIEWER. Remove the old
-            # role CHECK constraint without relying on its automatically chosen name.
-            conn.execute(
-                """
-                DO $$
-                DECLARE item record;
-                BEGIN
-                    FOR item IN
-                        SELECT conname
-                        FROM pg_constraint
-                        WHERE conrelid = 'users'::regclass
-                          AND contype = 'c'
-                          AND pg_get_constraintdef(oid) ILIKE '%role%'
-                    LOOP
-                        EXECUTE format(
-                            'ALTER TABLE users DROP CONSTRAINT %I', item.conname
-                        );
-                    END LOOP;
-                END $$;
-                """
-            )
-
             # OWNER is reserved for exactly one account.
-            conn.execute(
+            cursor.execute(
                 "UPDATE users SET role = 'ADMIN' "
-                "WHERE role = 'OWNER' AND name <> %s",
+                "WHERE role = 'OWNER' AND name COLLATE utf8mb4_bin <> %s",
                 (OWNER_NAME,),
             )
-            conn.execute(
-                "UPDATE users SET locked = FALSE WHERE name = %s",
+            cursor.execute(
+                "UPDATE users SET locked = FALSE WHERE name COLLATE utf8mb4_bin = %s",
                 (OWNER_NAME,),
-            )
-
-            conn.execute(
-                """
-                ALTER TABLE users
-                ADD CONSTRAINT users_role_check
-                CHECK (role IN ('OWNER', 'ADMIN', 'EDITOR', 'VIEWER'))
-                """
             )
             conn.commit()
 
     await asyncio.to_thread(_init)
-    logger.info("PostgreSQL database initialized (entries + users + sessions)")
+    logger.info("MySQL database initialized (entries + users + sessions)")
 
 
 async def seed_admin() -> None:
     existing = await run_db_query(
-        "SELECT id FROM users WHERE name = %s",
+        "SELECT id FROM users WHERE name COLLATE utf8mb4_bin = %s",
         (OWNER_NAME,),
         fetchone=True,
     )
@@ -498,7 +440,7 @@ async def get_user_by_name(name: str):
         """
         SELECT id, name, password_hash, role, must_change_password, locked, created_at
         FROM users
-        WHERE name = %s
+        WHERE name COLLATE utf8mb4_bin = %s
         """,
         (name,),
         fetchone=True,
@@ -532,7 +474,7 @@ async def list_users():
                 FROM user_sessions AS active_session
                 WHERE active_session.user_id = u.id
                   AND active_session.last_seen_at >= CURRENT_TIMESTAMP
-                      - (%s * INTERVAL '1 second')
+                      - INTERVAL %s SECOND
             ) AS is_online
         FROM users AS u
         ORDER BY
@@ -624,10 +566,10 @@ async def touch_user_session(user_id: int) -> None:
         """
         INSERT INTO user_sessions (session_token, user_id, last_seen_at)
         VALUES (%s, %s, CURRENT_TIMESTAMP)
-        ON CONFLICT (session_token) DO UPDATE
-        SET user_id = EXCLUDED.user_id, last_seen_at = CURRENT_TIMESTAMP
+        ON DUPLICATE KEY UPDATE
+            user_id = %s, last_seen_at = CURRENT_TIMESTAMP
         """,
-        (session_token, user_id),
+        (session_token, user_id, user_id),
         commit=True,
     )
 
@@ -971,7 +913,7 @@ async def create_entry():
         try:
             await save_entry(entry_date, high_light, low_light, rating, notes)
             await flash("Eintrag erfolgreich gespeichert.", "success")
-        except psycopg.IntegrityError:
+        except pymysql.IntegrityError:
             await flash("Für dieses Datum existiert bereits ein Eintrag.", "error")
             return await render_template("create_entry.html")
 
@@ -1012,7 +954,7 @@ async def edit_entry(entry_id: int):
                 entry_id, entry_date, high_light, low_light, rating, notes
             )
             await flash("Eintrag erfolgreich bearbeitet.", "success")
-        except psycopg.IntegrityError:
+        except pymysql.IntegrityError:
             await flash(
                 "Dieses Datum ist bereits vergeben. Bitte wähle ein anderes Datum.",
                 "error",
@@ -1089,6 +1031,12 @@ async def create_user_route():
         await flash("Bitte einen Namen eingeben.", "error")
         return redirect_to_management()
 
+    if len(name) > MAX_USERNAME_LENGTH:
+        await flash(
+            f"Der Name darf höchstens {MAX_USERNAME_LENGTH} Zeichen lang sein.", "error"
+        )
+        return redirect_to_management()
+
     if role not in ("ADMIN", "EDITOR", "VIEWER"):
         await flash("Ungültige Rolle.", "error")
         return redirect_to_management()
@@ -1104,7 +1052,7 @@ async def create_user_route():
             "Beim ersten Login muss es geändert werden.",
             "success",
         )
-    except psycopg.IntegrityError:
+    except pymysql.IntegrityError:
         await flash("Ein Nutzer mit diesem Namen existiert bereits.", "error")
 
     return redirect_to_management()
@@ -1202,12 +1150,14 @@ async def become_owner():
     try:
         # Defense in depth: ensure there can never be a second OWNER.
         await run_db_query(
-            "UPDATE users SET role = 'ADMIN' WHERE role = 'OWNER' AND name <> %s",
+            "UPDATE users SET role = 'ADMIN' "
+            "WHERE role = 'OWNER' AND name COLLATE utf8mb4_bin <> %s",
             (OWNER_NAME,),
             commit=True,
         )
         await run_db_query(
-            "UPDATE users SET role = 'OWNER', locked = FALSE WHERE id = %s AND name = %s",
+            "UPDATE users SET role = 'OWNER', locked = FALSE "
+            "WHERE id = %s AND name COLLATE utf8mb4_bin = %s",
             (user["id"], OWNER_NAME),
             commit=True,
         )
@@ -1242,7 +1192,10 @@ async def owner_page():
 async def owner_presence():
     users_list = await list_users()
     return jsonify(
-        users=[{"id": user["id"], "is_online": user["is_online"]} for user in users_list]
+        users=[
+            {"id": user["id"], "is_online": bool(user["is_online"])}
+            for user in users_list
+        ]
     )
 
 
@@ -1303,6 +1256,12 @@ async def owner_edit_user(user_id: int):
         await flash("Der Nutzername darf nicht leer sein.", "error")
         return redirect(url_for("owner_page"))
 
+    if len(name) > MAX_USERNAME_LENGTH:
+        await flash(
+            f"Der Name darf höchstens {MAX_USERNAME_LENGTH} Zeichen lang sein.", "error"
+        )
+        return redirect(url_for("owner_page"))
+
     if name.casefold() == OWNER_NAME.casefold():
         await flash(f"Der Name '{OWNER_NAME}' ist für den Owner reserviert.", "error")
         return redirect(url_for("owner_page"))
@@ -1323,7 +1282,7 @@ async def owner_edit_user(user_id: int):
         )
         if new_password:
             await set_user_password(user_id, new_password)
-    except psycopg.IntegrityError:
+    except pymysql.IntegrityError:
         await flash("Dieser Nutzername ist bereits vergeben.", "error")
         return redirect(url_for("owner_page"))
 
@@ -1375,7 +1334,7 @@ async def owner_delete_entries():
 @owner_required
 async def owner_delete_other_users():
     await run_db_query(
-        "DELETE FROM users WHERE name <> %s",
+        "DELETE FROM users WHERE name COLLATE utf8mb4_bin <> %s",
         (OWNER_NAME,),
         commit=True,
     )
